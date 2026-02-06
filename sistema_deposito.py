@@ -4,6 +4,10 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
+
+st.write(st.secrets.keys())
+
+
 # ---------------- TESTE DE CONEXÃO COM A PLANILHA ----------------
 
 sheet = conectar_planilha()
@@ -20,6 +24,7 @@ def conectar_planilha():
 
     creds = Credentials.from_service_account_info(
         st.secrets["google_service_account"],
+        
         scopes=scope
     )
 
@@ -33,6 +38,7 @@ d@st.cache_data(ttl=60)
 def carregar_dados():
     dados = sheet.get_all_records()
     return pd.DataFrame(dados)
+
 
 def gerar_id(df):
     return 1 if df.empty or "id" not in df.columns else int(df["id"].max()) + 1
