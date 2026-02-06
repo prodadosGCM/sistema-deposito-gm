@@ -3,9 +3,13 @@ import sqlite3
 import pandas as pd
 import time
 import hashlib
+import streamlit as st
+
+st.write(st.secrets["google_service_account"]["client_email"])
+
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Sistema RAS", layout="wide")
+st.set_page_config(page_title="Sistema Depósito", layout="wide")
 
 # --- FUNÇÕES DE SEGURANÇA (HASH) ---
 def make_hashes(password):
