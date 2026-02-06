@@ -8,10 +8,7 @@ from datetime import datetime
 st.write(st.secrets.keys())
 
 
-# ---------------- TESTE DE CONEXÃO COM A PLANILHA ----------------
 
-sheet = conectar_planilha()
-st.success("Conectado à planilha com sucesso!")
 
 
 # ---------------- CONFIG STREAMLIT ----------------
@@ -32,6 +29,9 @@ def conectar_planilha():
     sheet = client.open("depositopython").worksheet("veiculos")
     return sheet
 
+# ---------------- TESTE DE CONEXÃO COM A PLANILHA ----------------
+sheet = conectar_planilha()
+st.success("Conectado à planilha com sucesso!")
 
 # ---------------- FUNÇÕES AUXILIARES ----------------
 d@st.cache_data(ttl=60)
