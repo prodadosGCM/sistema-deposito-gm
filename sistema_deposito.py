@@ -4,13 +4,6 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-
-st.write(st.secrets.keys())
-
-
-
-
-
 # ---------------- CONFIG STREAMLIT ----------------
 st.set_page_config(page_title="Controle de Veículos - Depósito GCM", layout="wide")
 st.title("🚓 Depósito Público – Controle de Veículos | GCM")
@@ -55,8 +48,24 @@ def carregar_dados():
     dados = sheet.get_all_records()
     return pd.DataFrame(dados)
 
+
 def gerar_id(df):
-    return 1 if df.empty or "id" not in df.columns else int(df["id"].max()) + 1
+    if df.empty or "id" not in df.columns:
+        return 1
+
+    # converte para número, forçando erro virar NaN
+    df["id"] = pd.to_numeric(df["id"], errors="coerce")
+
+    # remove NaN
+    df_ids_validos = df["id"].dropna()
+
+    if df_ids_validos.empty:
+        return 1
+
+    return int(df_ids_validos.max()) + 1
+
+
+
 
 
 # ---------------- MENU ----------------
