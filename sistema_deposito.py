@@ -1,6 +1,7 @@
 import streamlit as st
 import gspread
 import pandas as pd
+from zoneinfo import ZoneInfo
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
@@ -43,10 +44,18 @@ sheet = conectar_planilha()
 st.success("Conectado à planilha com sucesso!")
 
 # ---------------- FUNÇÕES AUXILIARES ----------------
+
 @st.cache_data(ttl=60)
 def carregar_dados():
     dados = sheet.get_all_records()
-    return pd.DataFrame(dados)
+    df = pd.DataFrame(dados)
+
+    # PADRONIZA COLUNAS
+    df.columns = df.columns.str.strip().str.lower()
+
+    return df
+
+
 
 
 def gerar_id(df):
@@ -92,19 +101,20 @@ if menu == "🚗 Entrada de Veículo":
         if st.form_submit_button("Registrar Entrada"):
             df = carregar_dados()
             novo_id = gerar_id(df)
-            agora = datetime.now()
+            agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
+   
             sheet.append_row([
                 novo_id,
-                placa.upper(),
-                marca,
-                modelo,
-                cor,
-                tipo,
-                motivo,
+                placa.strip().upper(),
+                marca.strip().upper(),
+                modelo.strip().upper(),
+                cor.strip().upper(),
+                tipo.strip().upper(),
+                motivo.strip().upper(),
                 agora.strftime("%d/%m/%Y"),
                 agora.strftime("%H:%M"),
-                agente,
+                agente.strip().upper(),
                 "NO_DEPÓSITO",
                 "",
                 "",
@@ -139,13 +149,15 @@ elif menu == "📤 Saída de Veículo":
             linha = df.index[df["id"] == vid][0] + 2  # ajuste Google Sheets
 
             agora = datetime.now()
+                  
             sheet.update(f"K{linha}:O{linha}", [[
                 "LIBERADO",
                 agora.strftime("%d/%m/%Y"),
                 agora.strftime("%H:%M"),
-                agente_saida,
-                obs
+                agente_saida.strip().upper(),
+                obs.strip().upper()
             ]])
+           
 
             st.success("🚗 Veículo liberado com sucesso!")
 
