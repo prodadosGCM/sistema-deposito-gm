@@ -16,18 +16,34 @@ st.set_page_config(page_title="Controle de Veículos - Depósito GCM", layout="w
 st.title("🚓 Depósito Público – Controle de Veículos | GCM")
 
 # ---------------- CONEXÃO GOOGLE SHEETS ----------------
+
 def conectar_planilha():
-    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets"]
 
-    creds = Credentials.from_service_account_info(
-        st.secrets["google_service_account"],
-        
-        scopes=scope
-    )
+        st.write("Secrets carregados:", st.secrets.keys())
 
-    client = gspread.authorize(creds)
-    sheet = client.open("1p4eVJjnubslCc5mmxj8aHApC6ZTPraD2mvKkD8gBOEI").worksheet("veiculos")
-    return sheet
+        creds = Credentials.from_service_account_info(
+            st.secrets["google_service_account"],
+            scopes=scope
+        )
+
+        client = gspread.authorize(creds)
+        st.write("Cliente autorizado")
+
+        planilha = client.open_by_key("1p4eVJjnubslCc5mmxj8aHApC6ZTPraD2mvKkD8gBOEI")
+        st.write("Planilha aberta")
+
+        aba = planilha.worksheet("veiculos")
+        st.write("Aba encontrada")
+
+        return aba
+
+    except Exception as e:
+        st.error(e)
+        st.stop()
+
+
 
 # ---------------- TESTE DE CONEXÃO COM A PLANILHA ----------------
 sheet = conectar_planilha()
