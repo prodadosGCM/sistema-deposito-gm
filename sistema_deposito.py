@@ -26,7 +26,7 @@ def conectar_planilha():
     )
 
     client = gspread.authorize(creds)
-    sheet = client.open("depositopython").worksheet("veiculos")
+    sheet = client.open("1p4eVJjnubslCc5mmxj8aHApC6ZTPraD2mvKkD8gBOEI").worksheet("veiculos")
     return sheet
 
 # ---------------- TESTE DE CONEXÃO COM A PLANILHA ----------------
@@ -34,11 +34,10 @@ sheet = conectar_planilha()
 st.success("Conectado à planilha com sucesso!")
 
 # ---------------- FUNÇÕES AUXILIARES ----------------
-d@st.cache_data(ttl=60)
+@st.cache_data(ttl=60)
 def carregar_dados():
     dados = sheet.get_all_records()
     return pd.DataFrame(dados)
-
 
 def gerar_id(df):
     return 1 if df.empty or "id" not in df.columns else int(df["id"].max()) + 1
