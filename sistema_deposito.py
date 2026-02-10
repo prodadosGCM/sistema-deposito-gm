@@ -4,6 +4,9 @@ import pandas as pd
 from zoneinfo import ZoneInfo
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import hashlib
+
+
 
 # ---------------- CONFIG STREAMLIT ----------------
 st.set_page_config(page_title="Controle de Veículos - Depósito GCM", layout="wide")
@@ -74,6 +77,18 @@ def gerar_id(df):
     return int(df_ids_validos.max()) + 1
 
 
+def registrar_log(usuario, acao, detalhes=""):
+    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+    log_sheet = sheet.spreadsheet.worksheet("log_auditoria")
+
+    log_sheet.append_row([
+        agora.strftime("%d/%m/%Y"),
+        agora.strftime("%H:%M:%S"),
+        usuario.upper(),
+        acao.upper(),
+        detalhes.upper()
+    ])
 
 
 
@@ -121,6 +136,12 @@ if menu == "🚗 Entrada de Veículo":
                 "",
                 ""
             ])
+        
+            registrar_log(
+                usuario=agente,
+                acao="ENTRADA DE VEICULO",
+                detalhes=f"PLACA {placa}"
+            )
 
             st.success("✅ Veículo registrado com sucesso!")
 
@@ -156,8 +177,15 @@ elif menu == "📤 Saída de Veículo":
                 agora.strftime("%H:%M"),
                 agente_saida.strip().upper(),
                 obs.strip().upper()
+
+                
             ]])
            
+            registrar_log(
+                usuario=agente_saida,
+                acao="SAIDA DE VEICULO",
+                detalhes=f"PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
+            )
 
             st.success("🚗 Veículo liberado com sucesso!")
 
