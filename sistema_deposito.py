@@ -52,7 +52,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences e auditoria</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia e auditoria</div>', unsafe_allow_html=True)
 
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
@@ -295,7 +295,7 @@ sheet = conectar_planilha()
 def conectar_aba_retiradas():
     try:
         return sheet.spreadsheet.worksheet("retirada_pertences")
-    except:
+    except Exception:
         nova_aba = sheet.spreadsheet.add_worksheet(title="retirada_pertences", rows=1000, cols=10)
         nova_aba.append_row([
             "id_retirada",
@@ -314,7 +314,7 @@ def conectar_aba_retiradas():
 def conectar_aba_log():
     try:
         return sheet.spreadsheet.worksheet("log_auditoria")
-    except:
+    except Exception:
         nova_aba = sheet.spreadsheet.add_worksheet(title="log_auditoria", rows=2000, cols=5)
         nova_aba.append_row([
             "data",
@@ -325,8 +325,33 @@ def conectar_aba_log():
         ])
         return nova_aba
 
+def conectar_aba_delegacia():
+    try:
+        return sheet.spreadsheet.worksheet("veiculos_delegacia")
+    except Exception:
+        nova_aba = sheet.spreadsheet.add_worksheet(title="veiculos_delegacia", rows=2000, cols=15)
+        nova_aba.append_row([
+            "id",
+            "placa",
+            "marca",
+            "modelo",
+            "cor",
+            "tipo",
+            "procedencia",
+            "data_entrada",
+            "hora_entrada",
+            "agente_entrada",
+            "status",
+            "data_saida",
+            "hora_saida",
+            "agente_saida",
+            "observacoes"
+        ])
+        return nova_aba
+
 retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
+delegacia_sheet = conectar_aba_delegacia()
 
 # =====================================================
 # ---------------- FUNÇÕES AUXILIARES -----------------
@@ -362,10 +387,21 @@ def carregar_logs():
 
     return df
 
+@st.cache_data(ttl=60)
+def carregar_dados_delegacia():
+    dados = delegacia_sheet.get_all_records()
+    df = pd.DataFrame(dados)
+
+    if not df.empty:
+        df.columns = df.columns.str.strip().str.lower()
+
+    return df
+
 def gerar_id(df):
     if df.empty or "id" not in df.columns:
         return 1
 
+    df = df.copy()
     df["id"] = pd.to_numeric(df["id"], errors="coerce")
     df_ids_validos = df["id"].dropna()
 
@@ -378,6 +414,7 @@ def gerar_id_retirada(df):
     if df.empty or "id_retirada" not in df.columns:
         return 1
 
+    df = df.copy()
     df["id_retirada"] = pd.to_numeric(df["id_retirada"], errors="coerce")
     ids_validos = df["id_retirada"].dropna()
 
@@ -427,6 +464,62 @@ def registrar_retirada_pertence(
         usuario=agente_responsavel,
         acao="RETIRADA DE PERTENCE",
         detalhes=f"PLACA {placa} | RETIRANTE {nome_retirante} | DOC {documento_retirante}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_entrada_delegacia(placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
+    df = carregar_dados_delegacia()
+    novo_id = gerar_id(df)
+    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+    delegacia_sheet.append_row([
+        novo_id,
+        str(placa).upper(),
+        str(marca).upper(),
+        str(modelo).upper(),
+        str(cor).upper(),
+        str(tipo).upper(),
+        str(procedencia).upper(),
+        agora.strftime("%d/%m/%Y"),
+        agora.strftime("%H:%M"),
+        str(agente_entrada).upper(),
+        "NO_DEPÓSITO",
+        "",
+        "",
+        "",
+        ""
+    ])
+
+    registrar_log(
+        usuario=agente_entrada,
+        acao="ENTRADA VEICULO DELEGACIA",
+        detalhes=f"PLACA {placa} | PROCEDENCIA {procedencia}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
+    df = carregar_dados_delegacia()
+    df = preparar_dataframe(df)
+
+    linha = df.index[df["id"] == id_veiculo][0] + 2
+    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+    delegacia_sheet.update(f"K{linha}:O{linha}", [[
+        "LIBERADO",
+        agora.strftime("%d/%m/%Y"),
+        agora.strftime("%H:%M"),
+        str(agente_saida).upper(),
+        str(observacoes).upper()
+    ]])
+
+    placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
+
+    registrar_log(
+        usuario=agente_saida,
+        acao="SAIDA VEICULO DELEGACIA",
+        detalhes=f"PLACA {placa}"
     )
 
     st.cache_data.clear()
@@ -482,7 +575,7 @@ def card_metrica(titulo, valor):
 
 if st.session_state['tipo_usuario'] == 'admin':
     menu = st.sidebar.radio(
-        "Menu",
+        "Menu Principal",
         [
             "📊 Dashboard",
             "👤 Cadastrar Usuário",
@@ -491,19 +584,35 @@ if st.session_state['tipo_usuario'] == 'admin':
             "🚗 Entrada de Veículo",
             "📤 Saída de Veículo",
             "🧾 Retirada de Pertences",
+            "🚔 Delegacia",
             "🔎 Consulta / Inventário",
             "📜 Log de Auditoria"
         ]
     )
 else:
     menu = st.sidebar.radio(
-        "Menu",
+        "Menu Principal",
         [
             "📊 Dashboard",
             "🚗 Entrada de Veículo",
             "📤 Saída de Veículo",
             "🧾 Retirada de Pertences",
+            "🚔 Delegacia",
             "🔎 Consulta / Inventário"
+        ]
+    )
+
+submenu_delegacia = None
+
+if menu == "🚔 Delegacia":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Submenu Delegacia")
+    submenu_delegacia = st.sidebar.radio(
+        "Escolha uma opção",
+        [
+            "Entrada de Veículo",
+            "Saída de Veículo",
+            "Consulta de Veículos"
         ]
     )
 
@@ -761,7 +870,7 @@ elif menu == "🚗 Entrada de Veículo":
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
-        tipo = st.selectbox("Tipo", ["Automóvel", "Motocicleta", "Caminhão", "Outro"])
+        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
         motivo = st.text_area("Motivo da Apreensão")
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
@@ -910,6 +1019,111 @@ elif menu == "🧾 Retirada de Pertences":
                     )
 
                     st.success("✅ Retirada de pertences registrada com sucesso.")
+
+# =====================================================
+# 🚔 ENTRADA DE VEÍCULO DA DELEGACIA
+# =====================================================
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
+    st.subheader("Registro de Entrada de Veículo - Delegacia")
+
+    with st.form("entrada_delegacia"):
+        placa = st.text_input("Placa")
+        marca = st.text_input("Marca")
+        modelo = st.text_input("Modelo")
+        cor = st.text_input("Cor")
+        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
+        procedencia = st.text_input("Procedência / Delegacia de Origem")
+        agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
+
+        if st.form_submit_button("Registrar Entrada - Delegacia"):
+            if not placa or not marca or not modelo or not cor or not procedencia or not agente:
+                st.warning("Preencha todos os campos obrigatórios.")
+            else:
+                registrar_entrada_delegacia(
+                    placa=placa.strip(),
+                    marca=marca.strip(),
+                    modelo=modelo.strip(),
+                    cor=cor.strip(),
+                    tipo=tipo.strip(),
+                    procedencia=procedencia.strip(),
+                    agente_entrada=agente.strip()
+                )
+                st.success("✅ Veículo da delegacia registrado com sucesso.")
+
+# =====================================================
+# 🚔 SAÍDA DE VEÍCULO DA DELEGACIA
+# =====================================================
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
+    st.subheader("Registro de Saída de Veículo - Delegacia")
+
+    df_del = carregar_dados_delegacia()
+    df_del = preparar_dataframe(df_del)
+
+    if df_del.empty or "status" not in df_del.columns:
+        st.info("Nenhum veículo da delegacia registrado.")
+    else:
+        df_ativos = df_del[df_del["status"].astype(str).str.upper() == "NO_DEPÓSITO"]
+
+        if df_ativos.empty:
+            st.info("Nenhum veículo da delegacia no depósito.")
+        else:
+            veiculo = st.selectbox(
+                "Selecione o veículo da delegacia",
+                df_ativos["id"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
+            )
+
+            agente_saida = st.text_input(
+                "Agente Responsável pela Liberação",
+                value=st.session_state['nome_usuario'],
+                key="agente_saida_delegacia"
+            )
+            obs = st.text_area("Observações", key="obs_saida_delegacia")
+
+            if st.button("Registrar Saída - Delegacia"):
+                if not agente_saida:
+                    st.warning("Informe o agente responsável pela liberação.")
+                else:
+                    id_veiculo = int(veiculo.split(" - ")[0])
+
+                    registrar_saida_delegacia(
+                        id_veiculo=id_veiculo,
+                        agente_saida=agente_saida.strip(),
+                        observacoes=obs.strip()
+                    )
+
+                    st.success("✅ Saída de veículo da delegacia registrada com sucesso.")
+
+# =====================================================
+# 🚔 CONSULTA DE VEÍCULOS DA DELEGACIA
+# =====================================================
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
+    st.subheader("Consulta de Veículos Vindos da Delegacia")
+
+    df_del = carregar_dados_delegacia()
+    df_del = preparar_dataframe(df_del)
+
+    if df_del.empty:
+        st.info("Nenhum veículo da delegacia registrado.")
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        placa_del = c1.text_input("Placa", key="placa_del")
+        marca_del = c2.text_input("Marca", key="marca_del")
+        procedencia_del = c3.text_input("Procedência", key="procedencia_del")
+        status_del = c4.selectbox("Status", ["Todos", "NO_DEPÓSITO", "LIBERADO"], key="status_del")
+
+        if placa_del and "placa" in df_del.columns:
+            df_del = df_del[df_del["placa"].astype(str).str.contains(placa_del.upper(), na=False)]
+
+        if marca_del and "marca" in df_del.columns:
+            df_del = df_del[df_del["marca"].astype(str).str.contains(marca_del, case=False, na=False)]
+
+        if procedencia_del and "procedencia" in df_del.columns:
+            df_del = df_del[df_del["procedencia"].astype(str).str.contains(procedencia_del, case=False, na=False)]
+
+        if status_del != "Todos" and "status" in df_del.columns:
+            df_del = df_del[df_del["status"].astype(str).str.upper() == status_del]
+
+        st.dataframe(df_del, use_container_width=True)
 
 # =====================================================
 # 🔎 CONSULTA / INVENTÁRIO
