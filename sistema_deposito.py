@@ -662,9 +662,7 @@ if menu == "📊 Dashboard":
         c6, c7 = st.columns(2)
         with c6:
             card_metrica("Caminhões", total_caminhoes)
-        with c7:
-            card_metrica("Saldo Operacional", total_deposito - total_liberados)
-
+        
         st.markdown("---")
 
         tab1, tab2, tab3 = st.tabs(["Visão Geral", "Movimentação Mensal", "Produtividade"])
