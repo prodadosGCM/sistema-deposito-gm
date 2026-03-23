@@ -329,9 +329,10 @@ def conectar_aba_delegacia():
     try:
         return sheet.spreadsheet.worksheet("veiculos_delegacia")
     except Exception:
-        nova_aba = sheet.spreadsheet.add_worksheet(title="veiculos_delegacia", rows=2000, cols=15)
+        nova_aba = sheet.spreadsheet.add_worksheet(title="veiculos_delegacia", rows=2000, cols=16)
         nova_aba.append_row([
             "id",
+            "numero_grv",
             "placa",
             "marca",
             "modelo",
@@ -468,13 +469,14 @@ def registrar_retirada_pertence(
 
     st.cache_data.clear()
 
-def registrar_entrada_delegacia(placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
+def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
     df = carregar_dados_delegacia()
     novo_id = gerar_id(df)
     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
     delegacia_sheet.append_row([
         novo_id,
+        str(numero_grv).upper(),
         str(placa).upper(),
         str(marca).upper(),
         str(modelo).upper(),
@@ -494,7 +496,7 @@ def registrar_entrada_delegacia(placa, marca, modelo, cor, tipo, procedencia, ag
     registrar_log(
         usuario=agente_entrada,
         acao="ENTRADA VEICULO DELEGACIA",
-        detalhes=f"PLACA {placa} | PROCEDENCIA {procedencia}"
+        detalhes=f"GRV {numero_grv} | PLACA {placa} | PROCEDENCIA {procedencia}"
     )
 
     st.cache_data.clear()
@@ -506,7 +508,7 @@ def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
     linha = df.index[df["id"] == id_veiculo][0] + 2
     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-    delegacia_sheet.update(f"K{linha}:O{linha}", [[
+    delegacia_sheet.update(f"L{linha}:P{linha}", [[
         "LIBERADO",
         agora.strftime("%d/%m/%Y"),
         agora.strftime("%H:%M"),
@@ -515,11 +517,12 @@ def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
     ]])
 
     placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
+    numero_grv = df.loc[df["id"] == id_veiculo, "numero_grv"].values[0]
 
     registrar_log(
         usuario=agente_saida,
         acao="SAIDA VEICULO DELEGACIA",
-        detalhes=f"PLACA {placa}"
+        detalhes=f"GRV {numero_grv} | PLACA {placa}"
     )
 
     st.cache_data.clear()
@@ -540,6 +543,10 @@ def preparar_dataframe(df):
         mapa_alias["agente saída"] = "agente_saida"
     if "observações" in df.columns and "observacoes" not in df.columns:
         mapa_alias["observações"] = "observacoes"
+    if "número grv" in df.columns and "numero_grv" not in df.columns:
+        mapa_alias["número grv"] = "numero_grv"
+    if "número_grv" in df.columns and "numero_grv" not in df.columns:
+        mapa_alias["número_grv"] = "numero_grv"
 
     if mapa_alias:
         df = df.rename(columns=mapa_alias)
@@ -866,6 +873,7 @@ elif menu == "🚗 Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo")
 
     with st.form("entrada"):
+        numero_grv = st.text_input("Número da GRV")
         placa = st.text_input("Placa")
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
@@ -875,7 +883,7 @@ elif menu == "🚗 Entrada de Veículo":
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada"):
-            if not placa or not marca or not modelo or not cor or not motivo or not agente:
+            if not numero_grv or not placa or not marca or not modelo or not cor or not motivo or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             else:
                 df = carregar_dados()
@@ -884,6 +892,7 @@ elif menu == "🚗 Entrada de Veículo":
 
                 sheet.append_row([
                     novo_id,
+                    numero_grv.strip().upper(),
                     placa.strip().upper(),
                     marca.strip().upper(),
                     modelo.strip().upper(),
@@ -903,7 +912,7 @@ elif menu == "🚗 Entrada de Veículo":
                 registrar_log(
                     usuario=agente,
                     acao="ENTRADA DE VEICULO",
-                    detalhes=f"PLACA {placa}"
+                    detalhes=f"GRV {numero_grv} | PLACA {placa}"
                 )
 
                 st.cache_data.clear()
@@ -928,7 +937,7 @@ elif menu == "📤 Saída de Veículo":
         else:
             veiculo = st.selectbox(
                 "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - " + df_ativos["placa"].astype(str)
+                df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str)
             )
 
             agente_saida = st.text_input(
@@ -946,7 +955,7 @@ elif menu == "📤 Saída de Veículo":
 
                     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-                    sheet.update(f"K{linha}:O{linha}", [[
+                    sheet.update(f"L{linha}:P{linha}", [[
                         "LIBERADO",
                         agora.strftime("%d/%m/%Y"),
                         agora.strftime("%H:%M"),
@@ -957,7 +966,7 @@ elif menu == "📤 Saída de Veículo":
                     registrar_log(
                         usuario=agente_saida,
                         acao="SAIDA DE VEICULO",
-                        detalhes=f"PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
+                        detalhes=f"GRV {df.loc[df['id'] == vid, 'numero_grv'].values[0]} | PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
                     )
 
                     st.cache_data.clear()
@@ -982,7 +991,8 @@ elif menu == "🧾 Retirada de Pertences":
         else:
             veiculo = st.selectbox(
                 "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - " +
+                df_ativos["id"].astype(str) + " - GRV " +
+                df_ativos["numero_grv"].astype(str) + " - " +
                 df_ativos["placa"].astype(str) + " - " +
                 df_ativos["marca"].astype(str) + " - " +
                 df_ativos["modelo"].astype(str)
@@ -1004,7 +1014,7 @@ elif menu == "🧾 Retirada de Pertences":
                     st.warning("Preencha todos os campos obrigatórios.")
                 else:
                     id_veiculo = int(veiculo.split(" - ")[0])
-                    placa_veiculo = veiculo.split(" - ")[1]
+                    placa_veiculo = veiculo.split(" - ")[2]
 
                     registrar_retirada_pertence(
                         id_veiculo=id_veiculo,
@@ -1027,6 +1037,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo - Delegacia")
 
     with st.form("entrada_delegacia"):
+        numero_grv = st.text_input("Número da GRV")
         placa = st.text_input("Placa")
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
@@ -1036,10 +1047,11 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada - Delegacia"):
-            if not placa or not marca or not modelo or not cor or not procedencia or not agente:
+            if not numero_grv or not placa or not marca or not modelo or not cor or not procedencia or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             else:
                 registrar_entrada_delegacia(
+                    numero_grv=numero_grv.strip(),
                     placa=placa.strip(),
                     marca=marca.strip(),
                     modelo=modelo.strip(),
@@ -1069,7 +1081,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
         else:
             veiculo = st.selectbox(
                 "Selecione o veículo da delegacia",
-                df_ativos["id"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
+                df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
             )
 
             agente_saida = st.text_input(
