@@ -177,7 +177,6 @@ if not st.session_state['logado']:
                     st.rerun()
                 else:
                     st.error("Usuário ou senha inválidos.")
-
             else:
                 sucesso, uid, nome, p_acesso = login_agente(usuario_input, senha_input)
                 if sucesso:
@@ -286,11 +285,37 @@ def registrar_log(usuario, acao, detalhes=""):
         str(detalhes).upper()
     ])
 
-# ---------------- MENU ----------------
+def preparar_dataframe(df):
+    if df.empty:
+        return df
+
+    df = df.copy()
+    df.columns = df.columns.str.strip().str.lower()
+
+    colunas_texto = [
+        "placa", "marca", "modelo", "cor", "tipo", "motivo_apreensao",
+        "agente_entrada", "status", "data_saida", "hora_saida",
+        "agente_saida", "observacoes"
+    ]
+
+    for col in colunas_texto:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+
+    if "id" in df.columns:
+        df["id"] = pd.to_numeric(df["id"], errors="coerce")
+
+    return df
+
+# =====================================================
+# ---------------- MENU -------------------------------
+# =====================================================
+
 if st.session_state['tipo_usuario'] == 'admin':
     menu = st.sidebar.radio(
         "Menu",
         [
+            "📊 Dashboard",
             "👤 Cadastrar Usuário",
             "📋 Gerenciar Usuários",
             "🚗 Entrada de Veículo",
@@ -302,15 +327,106 @@ else:
     menu = st.sidebar.radio(
         "Menu",
         [
+            "📊 Dashboard",
             "🚗 Entrada de Veículo",
+            "📤 Saída de Veículo",
             "🔎 Consulta / Inventário"
         ]
     )
 
 # =====================================================
+# 📊 DASHBOARD - TODOS VISUALIZAM
+# =====================================================
+if menu == "📊 Dashboard":
+    st.subheader("Dashboard Operacional do Depósito")
+
+    df = carregar_dados()
+    df = preparar_dataframe(df)
+
+    if df.empty:
+        st.info("Ainda não há dados para exibir no dashboard.")
+    else:
+        total_registros = len(df)
+
+        if "status" in df.columns:
+            total_deposito = len(df[df["status"].astype(str).str.upper() == "NO_DEPÓSITO"])
+            total_liberados = len(df[df["status"].astype(str).str.upper() == "LIBERADO"])
+        else:
+            total_deposito = 0
+            total_liberados = 0
+
+        if "tipo" in df.columns:
+            total_motos = len(df[df["tipo"].astype(str).str.upper() == "MOTOCICLETA"])
+            total_automoveis = len(df[df["tipo"].astype(str).str.upper() == "AUTOMÓVEL"])
+            total_caminhoes = len(df[df["tipo"].astype(str).str.upper() == "CAMINHÃO"])
+        else:
+            total_motos = 0
+            total_automoveis = 0
+            total_caminhoes = 0
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total de Registros", total_registros)
+        c2.metric("No Depósito", total_deposito)
+        c3.metric("Liberados", total_liberados)
+        c4.metric("Motocicletas", total_motos)
+
+        c5, c6 = st.columns(2)
+        c5.metric("Automóveis", total_automoveis)
+        c6.metric("Caminhões", total_caminhoes)
+
+        st.markdown("---")
+
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            if "status" in df.columns:
+                st.markdown("**Veículos por Status**")
+                status_count = df["status"].astype(str).str.upper().value_counts()
+                st.bar_chart(status_count)
+
+        with col_g2:
+            if "tipo" in df.columns:
+                st.markdown("**Veículos por Tipo**")
+                tipo_count = df["tipo"].astype(str).str.upper().value_counts()
+                st.bar_chart(tipo_count)
+
+        st.markdown("---")
+
+        col_g3, col_g4 = st.columns(2)
+
+        with col_g3:
+            if "marca" in df.columns:
+                st.markdown("**Top 10 Marcas**")
+                marca_count = df["marca"].astype(str).str.upper().value_counts().head(10)
+                st.bar_chart(marca_count)
+
+        with col_g4:
+            if "agente_entrada" in df.columns:
+                st.markdown("**Entradas por Agente**")
+                agente_count = df["agente_entrada"].astype(str).str.upper().value_counts().head(10)
+                st.bar_chart(agente_count)
+
+        st.markdown("---")
+
+        if "data_entrada" in df.columns:
+            st.markdown("**Entradas por Data**")
+            df_datas = df.copy()
+            df_datas["data_entrada_dt"] = pd.to_datetime(df_datas["data_entrada"], format="%d/%m/%Y", errors="coerce")
+            entradas_por_data = (
+                df_datas.dropna(subset=["data_entrada_dt"])
+                .groupby("data_entrada_dt")
+                .size()
+                .sort_index()
+            )
+            if not entradas_por_data.empty:
+                st.line_chart(entradas_por_data)
+            else:
+                st.info("Sem datas válidas para o gráfico de entradas.")
+
+# =====================================================
 # 👤 CADASTRO DE USUÁRIO - SOMENTE ADMIN
 # =====================================================
-if menu == "👤 Cadastrar Usuário":
+elif menu == "👤 Cadastrar Usuário":
     if st.session_state['tipo_usuario'] != 'admin':
         st.error("Acesso restrito ao administrador.")
         st.stop()
@@ -422,21 +538,18 @@ elif menu == "🚗 Entrada de Veículo":
                 st.success("✅ Veículo registrado com sucesso!")
 
 # =====================================================
-# 📤 SAÍDA DE VEÍCULO - SOMENTE ADMIN
+# 📤 SAÍDA DE VEÍCULO - ADMIN E AGENTE
 # =====================================================
 elif menu == "📤 Saída de Veículo":
-    if st.session_state['tipo_usuario'] != 'admin':
-        st.error("Somente o administrador pode registrar a saída de veículos.")
-        st.stop()
-
     st.subheader("Registro de Saída de Veículo")
 
     df = carregar_dados()
+    df = preparar_dataframe(df)
 
     if df.empty or "status" not in df.columns:
         st.info("Nenhum veículo no depósito.")
     else:
-        df_ativos = df[df["status"] == "NO_DEPÓSITO"]
+        df_ativos = df[df["status"].astype(str).str.upper() == "NO_DEPÓSITO"]
 
         if df_ativos.empty:
             st.info("Nenhum veículo no depósito.")
@@ -453,27 +566,30 @@ elif menu == "📤 Saída de Veículo":
             obs = st.text_area("Observações")
 
             if st.button("Registrar Saída"):
-                vid = int(veiculo.split(" - ")[0])
-                linha = df.index[df["id"] == vid][0] + 2
+                if not agente_saida:
+                    st.warning("Informe o agente responsável pela liberação.")
+                else:
+                    vid = int(veiculo.split(" - ")[0])
+                    linha = df.index[df["id"] == vid][0] + 2
 
-                agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+                    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-                sheet.update(f"K{linha}:O{linha}", [[
-                    "LIBERADO",
-                    agora.strftime("%d/%m/%Y"),
-                    agora.strftime("%H:%M"),
-                    agente_saida.strip().upper(),
-                    obs.strip().upper()
-                ]])
+                    sheet.update(f"K{linha}:O{linha}", [[
+                        "LIBERADO",
+                        agora.strftime("%d/%m/%Y"),
+                        agora.strftime("%H:%M"),
+                        agente_saida.strip().upper(),
+                        obs.strip().upper()
+                    ]])
 
-                registrar_log(
-                    usuario=agente_saida,
-                    acao="SAIDA DE VEICULO",
-                    detalhes=f"PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
-                )
+                    registrar_log(
+                        usuario=agente_saida,
+                        acao="SAIDA DE VEICULO",
+                        detalhes=f"PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
+                    )
 
-                st.cache_data.clear()
-                st.success("🚗 Veículo liberado com sucesso!")
+                    st.cache_data.clear()
+                    st.success("🚗 Veículo liberado com sucesso!")
 
 # =====================================================
 # 🔎 CONSULTA / INVENTÁRIO
@@ -482,14 +598,16 @@ elif menu == "🔎 Consulta / Inventário":
     st.subheader("Consulta de Veículos")
 
     df = carregar_dados()
+    df = preparar_dataframe(df)
 
     if df.empty:
         st.info("Nenhum registro encontrado.")
     else:
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         placa = col1.text_input("Placa")
         marca = col2.text_input("Marca")
         data = col3.text_input("Data de Entrada (dd/mm/aaaa)")
+        status = col4.selectbox("Status", ["Todos", "NO_DEPÓSITO", "LIBERADO"])
 
         if placa and "placa" in df.columns:
             df = df[df["placa"].astype(str).str.contains(placa.upper(), na=False)]
@@ -499,5 +617,8 @@ elif menu == "🔎 Consulta / Inventário":
 
         if data and "data_entrada" in df.columns:
             df = df[df["data_entrada"].astype(str) == data]
+
+        if status != "Todos" and "status" in df.columns:
+            df = df[df["status"].astype(str).str.upper() == status]
 
         st.dataframe(df, use_container_width=True)
