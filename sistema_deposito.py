@@ -4,7 +4,7 @@ import pandas as pd
 import sqlite3
 from zoneinfo import ZoneInfo
 from google.oauth2.service_account import Credentials
-from datetime import datetime, date
+from datetime import datetime
 import hashlib
 import time
 
@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---------------- CSS ----------------
+# ---------------- CSS MODERNO ----------------
 st.markdown("""
 <style>
     .main-title {
@@ -48,121 +48,11 @@ st.markdown("""
         font-weight: 800;
         color: #ffffff;
     }
-    .mini-card {
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.06);
-        margin-bottom: 10px;
-    }
-    .mini-card h4 {
-        margin: 0;
-        font-size: 0.95rem;
-        color: #475569;
-        font-weight: 600;
-    }
-    .mini-card h2 {
-        margin: 8px 0 0 0;
-        font-size: 1.7rem;
-        color: #0f172a;
-        font-weight: 800;
-    }
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-    }
-    section[data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    .sidebar-card {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 14px;
-        padding: 12px;
-        margin-bottom: 12px;
-    }
-    .sidebar-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        margin-bottom: 6px;
-        color: #e2e8f0;
-    }
-    .section-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        margin: 6px 0 12px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia e auditoria</div>', unsafe_allow_html=True)
-
-# =====================================================
-# ---------------- CONSTANTES -------------------------
-# =====================================================
-
-STATUS_PATIO = "DEPÓSITO"
-STATUS_LIBERADO = "LIBERADO"
-
-HEADERS_VEICULOS = [
-    "id",
-    "numero_grv",
-    "placa",
-    "marca",
-    "modelo",
-    "cor",
-    "tipo",
-    "motivo_apreensao",
-    "data_entrada",
-    "hora_entrada",
-    "agente_entrada",
-    "status",
-    "data_saida",
-    "hora_saida",
-    "agente_saida",
-    "observacoes"
-]
-
-HEADERS_DELEGACIA = [
-    "id",
-    "numero_grv",
-    "placa",
-    "marca",
-    "modelo",
-    "cor",
-    "tipo",
-    "procedencia",
-    "data_entrada",
-    "hora_entrada",
-    "agente_entrada",
-    "status",
-    "data_saida",
-    "hora_saida",
-    "agente_saida",
-    "observacoes"
-]
-
-HEADERS_RETIRADAS = [
-    "id_retirada",
-    "id_veiculo",
-    "placa",
-    "data_retirada",
-    "hora_retirada",
-    "nome_retirante",
-    "documento_retirante",
-    "itens_retirados",
-    "observacao_retirada",
-    "agente_responsavel"
-]
-
-HEADERS_LOG = [
-    "data",
-    "hora",
-    "usuario",
-    "acao",
-    "detalhes"
-]
 
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
@@ -372,19 +262,11 @@ if st.session_state['primeiro_acesso']:
 # ---------------- SIDEBAR LOGADO ---------------------
 # =====================================================
 
-st.sidebar.markdown("""
-<div class="sidebar-card">
-    <div class="sidebar-title">Usuário logado</div>
-</div>
-""", unsafe_allow_html=True)
+st.sidebar.success(f"Logado como: {st.session_state['nome_usuario']}")
+st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
 
-st.sidebar.write(f"**Nome:** {st.session_state['nome_usuario']}")
-st.sidebar.write(f"**Perfil:** {st.session_state['tipo_usuario'].upper()}")
-
-if st.sidebar.button("Sair do Sistema", use_container_width=True):
+if st.sidebar.button("Sair / Logout"):
     logout()
-
-st.sidebar.markdown("---")
 
 # =====================================================
 # ------------- CONEXÃO GOOGLE SHEETS -----------------
@@ -415,7 +297,18 @@ def conectar_aba_retiradas():
         return sheet.spreadsheet.worksheet("retirada_pertences")
     except Exception:
         nova_aba = sheet.spreadsheet.add_worksheet(title="retirada_pertences", rows=1000, cols=10)
-        nova_aba.append_row(HEADERS_RETIRADAS)
+        nova_aba.append_row([
+            "id_retirada",
+            "id_veiculo",
+            "placa",
+            "data_retirada",
+            "hora_retirada",
+            "nome_retirante",
+            "documento_retirante",
+            "itens_retirados",
+            "observacao_retirada",
+            "agente_responsavel"
+        ])
         return nova_aba
 
 def conectar_aba_log():
@@ -423,38 +316,42 @@ def conectar_aba_log():
         return sheet.spreadsheet.worksheet("log_auditoria")
     except Exception:
         nova_aba = sheet.spreadsheet.add_worksheet(title="log_auditoria", rows=2000, cols=5)
-        nova_aba.append_row(HEADERS_LOG)
+        nova_aba.append_row([
+            "data",
+            "hora",
+            "usuario",
+            "acao",
+            "detalhes"
+        ])
         return nova_aba
 
 def conectar_aba_delegacia():
     try:
         return sheet.spreadsheet.worksheet("veiculos_delegacia")
     except Exception:
-        nova_aba = sheet.spreadsheet.add_worksheet(title="veiculos_delegacia", rows=2000, cols=16)
-        nova_aba.append_row(HEADERS_DELEGACIA)
+        nova_aba = sheet.spreadsheet.add_worksheet(title="veiculos_delegacia", rows=2000, cols=15)
+        nova_aba.append_row([
+            "id",
+            "placa",
+            "marca",
+            "modelo",
+            "cor",
+            "tipo",
+            "procedencia",
+            "data_entrada",
+            "hora_entrada",
+            "agente_entrada",
+            "status",
+            "data_saida",
+            "hora_saida",
+            "agente_saida",
+            "observacoes"
+        ])
         return nova_aba
 
 retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
 delegacia_sheet = conectar_aba_delegacia()
-
-def validar_headers_worksheet(worksheet, headers_esperados, nome_aba):
-    headers_atuais = worksheet.row_values(1)
-    headers_atuais = [str(h).strip().lower() for h in headers_atuais]
-    headers_esperados = [str(h).strip().lower() for h in headers_esperados]
-
-    if headers_atuais != headers_esperados:
-        st.error(
-            f"A aba '{nome_aba}' está com a estrutura diferente do esperado.\n\n"
-            f"Esperado: {headers_esperados}\n\n"
-            f"Atual: {headers_atuais}"
-        )
-        st.stop()
-
-validar_headers_worksheet(sheet, HEADERS_VEICULOS, "veiculos")
-validar_headers_worksheet(delegacia_sheet, HEADERS_DELEGACIA, "veiculos_delegacia")
-validar_headers_worksheet(retirada_sheet, HEADERS_RETIRADAS, "retirada_pertences")
-validar_headers_worksheet(log_sheet, HEADERS_LOG, "log_auditoria")
 
 # =====================================================
 # ---------------- FUNÇÕES AUXILIARES -----------------
@@ -464,52 +361,66 @@ validar_headers_worksheet(log_sheet, HEADERS_LOG, "log_auditoria")
 def carregar_dados():
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
+
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
+
     return df
 
 @st.cache_data(ttl=60)
 def carregar_retiradas():
     dados = retirada_sheet.get_all_records()
     df = pd.DataFrame(dados)
+
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
+
     return df
 
 @st.cache_data(ttl=60)
 def carregar_logs():
     dados = log_sheet.get_all_records()
     df = pd.DataFrame(dados)
+
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
+
     return df
 
 @st.cache_data(ttl=60)
 def carregar_dados_delegacia():
     dados = delegacia_sheet.get_all_records()
     df = pd.DataFrame(dados)
+
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
+
     return df
 
 def gerar_id(df):
     if df.empty or "id" not in df.columns:
         return 1
+
     df = df.copy()
     df["id"] = pd.to_numeric(df["id"], errors="coerce")
     df_ids_validos = df["id"].dropna()
+
     if df_ids_validos.empty:
         return 1
+
     return int(df_ids_validos.max()) + 1
 
 def gerar_id_retirada(df):
     if df.empty or "id_retirada" not in df.columns:
         return 1
+
     df = df.copy()
     df["id_retirada"] = pd.to_numeric(df["id_retirada"], errors="coerce")
     ids_validos = df["id_retirada"].dropna()
+
     if ids_validos.empty:
         return 1
+
     return int(ids_validos.max()) + 1
 
 def registrar_log(usuario, acao, detalhes=""):
@@ -521,102 +432,6 @@ def registrar_log(usuario, acao, detalhes=""):
         str(acao).upper(),
         str(detalhes).upper()
     ])
-
-def preparar_dataframe(df):
-    if df.empty:
-        return df
-
-    df = df.copy()
-    df.columns = df.columns.str.strip().str.lower()
-
-    mapa_alias = {}
-    if "motivo da apreensão" in df.columns and "motivo_apreensao" not in df.columns:
-        mapa_alias["motivo da apreensão"] = "motivo_apreensao"
-    if "agente entrada" in df.columns and "agente_entrada" not in df.columns:
-        mapa_alias["agente entrada"] = "agente_entrada"
-    if "agente saída" in df.columns and "agente_saida" not in df.columns:
-        mapa_alias["agente saída"] = "agente_saida"
-    if "observações" in df.columns and "observacoes" not in df.columns:
-        mapa_alias["observações"] = "observacoes"
-    if "número_grv" in df.columns and "numero_grv" not in df.columns:
-        mapa_alias["número_grv"] = "numero_grv"
-
-    if mapa_alias:
-        df = df.rename(columns=mapa_alias)
-
-    for col in df.columns:
-        if col != "id":
-            df[col] = df[col].astype(str)
-
-    if "id" in df.columns:
-        df["id"] = pd.to_numeric(df["id"], errors="coerce")
-
-    return df
-
-def montar_coluna_mes(df, coluna_data, nome_coluna_mes):
-    if coluna_data in df.columns:
-        df[nome_coluna_mes] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y", errors="coerce")
-        df[nome_coluna_mes] = df[nome_coluna_mes].dt.to_period("M").astype(str)
-    else:
-        df[nome_coluna_mes] = None
-    return df
-
-def montar_coluna_data_real(df, coluna_data, nome_coluna):
-    if coluna_data in df.columns:
-        df[nome_coluna] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y", errors="coerce")
-    else:
-        df[nome_coluna] = pd.NaT
-    return df
-
-def filtrar_por_periodo(df, coluna_data, data_inicio, data_fim):
-    if df.empty or coluna_data not in df.columns:
-        return df
-    df = df.copy()
-    df = montar_coluna_data_real(df, coluna_data, "__data_filtro__")
-    if pd.notna(data_inicio):
-        df = df[df["__data_filtro__"] >= pd.Timestamp(data_inicio)]
-    if pd.notna(data_fim):
-        df = df[df["__data_filtro__"] <= pd.Timestamp(data_fim)]
-    return df.drop(columns=["__data_filtro__"], errors="ignore")
-
-def card_metrica(titulo, valor):
-    st.markdown(f"""
-        <div class="metric-card">
-            <h4>{titulo}</h4>
-            <h2>{valor}</h2>
-        </div>
-    """, unsafe_allow_html=True)
-
-def mini_card(titulo, valor):
-    st.markdown(f"""
-        <div class="mini-card">
-            <h4>{titulo}</h4>
-            <h2>{valor}</h2>
-        </div>
-    """, unsafe_allow_html=True)
-
-def estilizar_status(df):
-    if df.empty or "status" not in df.columns:
-        return df
-
-    def cor_status(valor):
-        valor = str(valor).upper().strip()
-        if valor == STATUS_PATIO:
-            return "background-color: #fff3cd; color: #7a4b00; font-weight: 700;"
-        if valor == STATUS_LIBERADO:
-            return "background-color: #d1e7dd; color: #0f5132; font-weight: 700;"
-        return ""
-
-    styler = df.style.map(cor_status, subset=["status"])
-    return styler
-
-def exibir_tabela(df):
-    if df.empty:
-        st.dataframe(df, use_container_width=True)
-    elif "status" in df.columns:
-        st.dataframe(estilizar_status(df), use_container_width=True)
-    else:
-        st.dataframe(df, use_container_width=True)
 
 def registrar_retirada_pertence(
     id_veiculo,
@@ -653,72 +468,13 @@ def registrar_retirada_pertence(
 
     st.cache_data.clear()
 
-def registrar_entrada_patio(numero_grv, placa, marca, modelo, cor, tipo, motivo, agente):
-    df = carregar_dados()
-    novo_id = gerar_id(df)
-    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-    sheet.append_row([
-        novo_id,
-        str(numero_grv).upper(),
-        str(placa).upper(),
-        str(marca).upper(),
-        str(modelo).upper(),
-        str(cor).upper(),
-        str(tipo).upper(),
-        str(motivo).upper(),
-        agora.strftime("%d/%m/%Y"),
-        agora.strftime("%H:%M"),
-        str(agente).upper(),
-        STATUS_PATIO,
-        "",
-        "",
-        "",
-        ""
-    ])
-
-    registrar_log(
-        usuario=agente,
-        acao="ENTRADA DE VEICULO",
-        detalhes=f"GRV {numero_grv} | PLACA {placa}"
-    )
-
-    st.cache_data.clear()
-
-def registrar_saida_patio(id_veiculo, agente_saida, observacoes=""):
-    df = carregar_dados()
-    df = preparar_dataframe(df)
-
-    linha = df.index[df["id"] == id_veiculo][0] + 2
-    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-    sheet.update(f"L{linha}:P{linha}", [[
-        STATUS_LIBERADO,
-        agora.strftime("%d/%m/%Y"),
-        agora.strftime("%H:%M"),
-        str(agente_saida).upper(),
-        str(observacoes).upper()
-    ]])
-
-    placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
-    numero_grv = df.loc[df["id"] == id_veiculo, "numero_grv"].values[0] if "numero_grv" in df.columns else ""
-
-    registrar_log(
-        usuario=agente_saida,
-        acao="SAIDA DE VEICULO",
-        detalhes=f"GRV {numero_grv} | PLACA {placa}"
-    )
-
-    st.cache_data.clear()
-
-def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
+def registrar_entrada_delegacia(placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
     df = carregar_dados_delegacia()
     novo_id = gerar_id(df)
     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
     delegacia_sheet.append_row([
         novo_id,
-        str(numero_grv).upper(),
         str(placa).upper(),
         str(marca).upper(),
         str(modelo).upper(),
@@ -728,7 +484,7 @@ def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, pro
         agora.strftime("%d/%m/%Y"),
         agora.strftime("%H:%M"),
         str(agente_entrada).upper(),
-        STATUS_PATIO,
+        "DEPÓSITO",
         "",
         "",
         "",
@@ -738,7 +494,7 @@ def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, pro
     registrar_log(
         usuario=agente_entrada,
         acao="ENTRADA VEICULO DELEGACIA",
-        detalhes=f"GRV {numero_grv} | PLACA {placa} | PROCEDENCIA {procedencia}"
+        detalhes=f"PLACA {placa} | PROCEDENCIA {procedencia}"
     )
 
     st.cache_data.clear()
@@ -750,8 +506,8 @@ def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
     linha = df.index[df["id"] == id_veiculo][0] + 2
     agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-    delegacia_sheet.update(f"L{linha}:P{linha}", [[
-        STATUS_LIBERADO,
+    delegacia_sheet.update(f"K{linha}:O{linha}", [[
+        "LIBERADO",
         agora.strftime("%d/%m/%Y"),
         agora.strftime("%H:%M"),
         str(agente_saida).upper(),
@@ -759,305 +515,273 @@ def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
     ]])
 
     placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
-    numero_grv = df.loc[df["id"] == id_veiculo, "numero_grv"].values[0] if "numero_grv" in df.columns else ""
 
     registrar_log(
         usuario=agente_saida,
         acao="SAIDA VEICULO DELEGACIA",
-        detalhes=f"GRV {numero_grv} | PLACA {placa}"
+        detalhes=f"PLACA {placa}"
     )
 
     st.cache_data.clear()
+
+def preparar_dataframe(df):
+    if df.empty:
+        return df
+
+    df = df.copy()
+    df.columns = df.columns.str.strip().str.lower()
+
+    mapa_alias = {}
+    if "motivo da apreensão" in df.columns and "motivo_apreensao" not in df.columns:
+        mapa_alias["motivo da apreensão"] = "motivo_apreensao"
+    if "agente entrada" in df.columns and "agente_entrada" not in df.columns:
+        mapa_alias["agente entrada"] = "agente_entrada"
+    if "agente saída" in df.columns and "agente_saida" not in df.columns:
+        mapa_alias["agente saída"] = "agente_saida"
+    if "observações" in df.columns and "observacoes" not in df.columns:
+        mapa_alias["observações"] = "observacoes"
+
+    if mapa_alias:
+        df = df.rename(columns=mapa_alias)
+
+    for col in df.columns:
+        if col != "id":
+            df[col] = df[col].astype(str)
+
+    if "id" in df.columns:
+        df["id"] = pd.to_numeric(df["id"], errors="coerce")
+
+    return df
+
+def montar_coluna_mes(df, coluna_data, nome_coluna_mes):
+    if coluna_data in df.columns:
+        df[nome_coluna_mes] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y", errors="coerce")
+        df[nome_coluna_mes] = df[nome_coluna_mes].dt.to_period("M").astype(str)
+    else:
+        df[nome_coluna_mes] = None
+    return df
+
+def card_metrica(titulo, valor):
+    st.markdown(f"""
+        <div class="metric-card">
+            <h4>{titulo}</h4>
+            <h2>{valor}</h2>
+        </div>
+    """, unsafe_allow_html=True)
 
 # =====================================================
 # ---------------- MENU -------------------------------
 # =====================================================
 
-st.sidebar.markdown("## Navegação")
-
 if st.session_state['tipo_usuario'] == 'admin':
     menu = st.sidebar.radio(
-        "Módulos",
+        "Menu Principal",
         [
             "📊 Dashboard",
-            "🚗 Operação de Pátio",
+            "👤 Cadastrar Usuário",
+            "📋 Gerenciar Usuários",
+            "🔐 Minha Conta",
+            "🚗 Entrada de Veículo",
+            "📤 Saída de Veículo",
+            "🧾 Retirada de Pertences",
             "🚔 Delegacia",
-            "👥 Administração",
             "🔎 Consulta / Inventário",
             "📜 Log de Auditoria"
-        ],
-        label_visibility="collapsed"
+        ]
     )
 else:
     menu = st.sidebar.radio(
-        "Módulos",
+        "Menu Principal",
         [
             "📊 Dashboard",
-            "🚗 Operação de Pátio",
+            "🚗 Entrada de Veículo",
+            "📤 Saída de Veículo",
+            "🧾 Retirada de Pertences",
             "🚔 Delegacia",
             "🔎 Consulta / Inventário"
-        ],
-        label_visibility="collapsed"
+        ]
     )
 
-submenu_operacao = None
 submenu_delegacia = None
-submenu_admin = None
-
-if menu == "🚗 Operação de Pátio":
-    st.sidebar.markdown("""
-    <div class="sidebar-card">
-        <div class="sidebar-title">Operação de Pátio</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    submenu_operacao = st.sidebar.radio(
-        "Operação de Pátio",
-        [
-            "Entrada de Veículo",
-            "Saída de Veículo",
-            "Retirada de Pertences"
-        ],
-        label_visibility="collapsed"
-    )
 
 if menu == "🚔 Delegacia":
-    st.sidebar.markdown("""
-    <div class="sidebar-card">
-        <div class="sidebar-title">Módulo Delegacia</div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Submenu Delegacia")
     submenu_delegacia = st.sidebar.radio(
-        "Delegacia",
+        "Escolha uma opção",
         [
-            "Dashboard Delegacia",
             "Entrada de Veículo",
             "Saída de Veículo",
             "Consulta de Veículos"
-        ],
-        label_visibility="collapsed"
-    )
-
-if menu == "👥 Administração" and st.session_state['tipo_usuario'] == 'admin':
-    st.sidebar.markdown("""
-    <div class="sidebar-card">
-        <div class="sidebar-title">Administração</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    submenu_admin = st.sidebar.radio(
-        "Administração",
-        [
-            "Cadastrar Usuário",
-            "Gerenciar Usuários",
-            "Minha Conta"
-        ],
-        label_visibility="collapsed"
+        ]
     )
 
 # =====================================================
-# 📊 DASHBOARD PRINCIPAL
+# 📊 DASHBOARD
 # =====================================================
 if menu == "📊 Dashboard":
     st.subheader("Dashboard Operacional")
 
-    df_patio = preparar_dataframe(carregar_dados())
-    df_del = preparar_dataframe(carregar_dados_delegacia())
+    df = carregar_dados()
+    df = preparar_dataframe(df)
 
-    c1, c2 = st.columns(2)
-    data_inicio = c1.date_input("Período inicial", value=date(date.today().year, 1, 1), key="dash_inicio")
-    data_fim = c2.date_input("Período final", value=date.today(), key="dash_fim")
+    if df.empty:
+        st.info("Ainda não há dados para exibir no dashboard.")
+    else:
+        df = montar_coluna_mes(df, "data_entrada", "mes_entrada")
+        df = montar_coluna_mes(df, "data_saida", "mes_saida")
 
-    if data_inicio > data_fim:
-        st.error("A data inicial não pode ser maior que a data final.")
-        st.stop()
+        total_registros = len(df)
+        total_deposito = len(df[df["status"].astype(str).str.upper() == "DEPÓSITO"]) if "status" in df.columns else 0
+        total_liberados = len(df[df["status"].astype(str).str.upper() == "LIBERADO"]) if "status" in df.columns else 0
+        total_motos = len(df[df["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df.columns else 0
+        total_automoveis = len(df[df["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df.columns else 0
+        total_caminhoes = len(df[df["tipo"].astype(str).str.upper() == "CAMINHÃO"]) if "tipo" in df.columns else 0
 
-    if not df_patio.empty:
-        df_patio = filtrar_por_periodo(df_patio, "data_entrada", data_inicio, data_fim)
-    if not df_del.empty:
-        df_del = filtrar_por_periodo(df_del, "data_entrada", data_inicio, data_fim)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            card_metrica("Total de Registros", total_registros)
+        with c2:
+            card_metrica("No Depósito", total_deposito)
+        with c3:
+            card_metrica("Liberados", total_liberados)
+        with c4:
+            card_metrica("Motocicletas", total_motos)
+        with c5:
+            card_metrica("Automóveis", total_automoveis)
 
-    bloco1, bloco2 = st.columns(2)
+        st.markdown("")
 
-    with bloco1:
-        st.markdown("### 🚗 Pátio Normal")
+        c6, c7 = st.columns(2)
+        with c6:
+            card_metrica("Caminhões", total_caminhoes)
+        with c7:
+            card_metrica("Saldo Operacional", total_deposito - total_liberados)
 
-        if df_patio.empty:
-            st.info("Sem dados do pátio normal no período selecionado.")
-        else:
-            df_patio = montar_coluna_mes(df_patio, "data_entrada", "mes_entrada")
-            df_patio = montar_coluna_mes(df_patio, "data_saida", "mes_saida")
+        st.markdown("---")
 
-            total_registros = len(df_patio)
-            total_deposito = len(df_patio[df_patio["status"].astype(str).str.upper() == STATUS_PATIO]) if "status" in df_patio.columns else 0
-            total_liberados = len(df_patio[df_patio["status"].astype(str).str.upper() == STATUS_LIBERADO]) if "status" in df_patio.columns else 0
-            total_motos = len(df_patio[df_patio["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df_patio.columns else 0
-            total_automoveis = len(df_patio[df_patio["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df_patio.columns else 0
+        tab1, tab2, tab3 = st.tabs(["Visão Geral", "Movimentação Mensal", "Produtividade"])
 
-            a1, a2 = st.columns(2)
-            with a1:
-                mini_card("Total", total_registros)
-            with a2:
-                mini_card("No Depósito", total_deposito)
+        with tab1:
+            g1, g2 = st.columns(2)
 
-            a3, a4 = st.columns(2)
-            with a3:
-                mini_card("Liberados", total_liberados)
-            with a4:
-                mini_card("Motocicletas", total_motos)
+            with g1:
+                st.markdown("**Veículos por Status**")
+                if "status" in df.columns:
+                    status_count = df["status"].astype(str).str.upper().value_counts()
+                    st.bar_chart(status_count, use_container_width=True)
 
-            mini_card("Automóveis", total_automoveis)
+            with g2:
+                st.markdown("**Veículos por Tipo**")
+                if "tipo" in df.columns:
+                    tipo_count = df["tipo"].astype(str).str.upper().value_counts()
+                    st.bar_chart(tipo_count, use_container_width=True)
 
-            st.markdown("**Status**")
-            if "status" in df_patio.columns:
-                st.bar_chart(df_patio["status"].astype(str).str.upper().value_counts(), use_container_width=True)
+            g3, g4 = st.columns(2)
 
-            st.markdown("**Entradas por mês**")
+            with g3:
+                st.markdown("**Top 10 Marcas**")
+                if "marca" in df.columns:
+                    marca_count = df["marca"].astype(str).str.upper().value_counts().head(10)
+                    st.bar_chart(marca_count, use_container_width=True)
+
+            with g4:
+                st.markdown("**Entradas por Agente**")
+                if "agente_entrada" in df.columns:
+                    agente_count = df["agente_entrada"].astype(str).str.upper().value_counts().head(10)
+                    st.bar_chart(agente_count, use_container_width=True)
+
+        with tab2:
+            m1, m2 = st.columns(2)
+
             entradas_mes = (
-                df_patio.dropna(subset=["mes_entrada"])
-                .groupby("mes_entrada")
-                .size()
-                .sort_index()
+                df.dropna(subset=["mes_entrada"])
+                  .groupby("mes_entrada")
+                  .size()
+                  .sort_index()
             )
-            if not entradas_mes.empty:
-                st.line_chart(entradas_mes, use_container_width=True)
-            else:
-                st.info("Sem entradas no período.")
 
-    with bloco2:
-        st.markdown("### 🚔 Delegacia")
-
-        if df_del.empty:
-            st.info("Sem dados da delegacia no período selecionado.")
-        else:
-            df_del = montar_coluna_mes(df_del, "data_entrada", "mes_entrada")
-            df_del = montar_coluna_mes(df_del, "data_saida", "mes_saida")
-
-            total_registros = len(df_del)
-            total_deposito = len(df_del[df_del["status"].astype(str).str.upper() == STATUS_PATIO]) if "status" in df_del.columns else 0
-            total_liberados = len(df_del[df_del["status"].astype(str).str.upper() == STATUS_LIBERADO]) if "status" in df_del.columns else 0
-            total_motos = len(df_del[df_del["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df_del.columns else 0
-            total_automoveis = len(df_del[df_del["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df_del.columns else 0
-
-            b1, b2 = st.columns(2)
-            with b1:
-                mini_card("Total", total_registros)
-            with b2:
-                mini_card("No Depósito", total_deposito)
-
-            b3, b4 = st.columns(2)
-            with b3:
-                mini_card("Liberados", total_liberados)
-            with b4:
-                mini_card("Motocicletas", total_motos)
-
-            mini_card("Automóveis", total_automoveis)
-
-            st.markdown("**Status**")
-            if "status" in df_del.columns:
-                st.bar_chart(df_del["status"].astype(str).str.upper().value_counts(), use_container_width=True)
-
-            st.markdown("**Entradas por mês**")
-            entradas_mes = (
-                df_del.dropna(subset=["mes_entrada"])
-                .groupby("mes_entrada")
-                .size()
-                .sort_index()
+            saidas_mes = (
+                df.dropna(subset=["mes_saida"])
+                  .groupby("mes_saida")
+                  .size()
+                  .sort_index()
             )
-            if not entradas_mes.empty:
-                st.line_chart(entradas_mes, use_container_width=True)
-            else:
-                st.info("Sem entradas no período.")
 
-    st.markdown("---")
-    st.markdown("### Comparativos Consolidados")
-
-    tab1, tab2, tab3 = st.tabs(["Movimentação Mensal", "Tipos e Procedência", "Produtividade"])
-
-    with tab1:
-        p1, p2 = st.columns(2)
-
-        with p1:
-            st.markdown("**Pátio Normal - Entradas x Saídas por Mês**")
-            if not df_patio.empty:
-                df_tmp = df_patio.copy()
-                df_tmp = montar_coluna_mes(df_tmp, "data_entrada", "mes_entrada")
-                df_tmp = montar_coluna_mes(df_tmp, "data_saida", "mes_saida")
-
-                entradas = df_tmp.dropna(subset=["mes_entrada"]).groupby("mes_entrada").size().sort_index()
-                saidas = df_tmp.dropna(subset=["mes_saida"]).groupby("mes_saida").size().sort_index()
-
-                entradas_df = entradas.reset_index(name="Entradas").rename(columns={"mes_entrada": "Mês"}) if not entradas.empty else pd.DataFrame(columns=["Mês", "Entradas"])
-                saidas_df = saidas.reset_index(name="Saídas").rename(columns={"mes_saida": "Mês"}) if not saidas.empty else pd.DataFrame(columns=["Mês", "Saídas"])
-                comparativo = pd.merge(entradas_df, saidas_df, on="Mês", how="outer").fillna(0)
-
-                if not comparativo.empty:
-                    st.bar_chart(comparativo.set_index("Mês")[["Entradas", "Saídas"]], use_container_width=True)
-                    st.dataframe(comparativo, use_container_width=True)
+            with m1:
+                st.markdown("**Quantidade de Entradas por Mês**")
+                if not entradas_mes.empty:
+                    st.line_chart(entradas_mes, use_container_width=True)
+                    st.dataframe(
+                        entradas_mes.reset_index(name="Entradas").rename(columns={"mes_entrada": "Mês"}),
+                        use_container_width=True
+                    )
                 else:
-                    st.info("Sem dados suficientes.")
-            else:
-                st.info("Sem dados.")
+                    st.info("Sem dados de entrada por mês.")
 
-        with p2:
-            st.markdown("**Delegacia - Entradas x Saídas por Mês**")
-            if not df_del.empty:
-                df_tmp = df_del.copy()
-                df_tmp = montar_coluna_mes(df_tmp, "data_entrada", "mes_entrada")
-                df_tmp = montar_coluna_mes(df_tmp, "data_saida", "mes_saida")
-
-                entradas = df_tmp.dropna(subset=["mes_entrada"]).groupby("mes_entrada").size().sort_index()
-                saidas = df_tmp.dropna(subset=["mes_saida"]).groupby("mes_saida").size().sort_index()
-
-                entradas_df = entradas.reset_index(name="Entradas").rename(columns={"mes_entrada": "Mês"}) if not entradas.empty else pd.DataFrame(columns=["Mês", "Entradas"])
-                saidas_df = saidas.reset_index(name="Saídas").rename(columns={"mes_saida": "Mês"}) if not saidas.empty else pd.DataFrame(columns=["Mês", "Saídas"])
-                comparativo = pd.merge(entradas_df, saidas_df, on="Mês", how="outer").fillna(0)
-
-                if not comparativo.empty:
-                    st.bar_chart(comparativo.set_index("Mês")[["Entradas", "Saídas"]], use_container_width=True)
-                    st.dataframe(comparativo, use_container_width=True)
+            with m2:
+                st.markdown("**Quantidade de Saídas por Mês**")
+                if not saidas_mes.empty:
+                    st.line_chart(saidas_mes, use_container_width=True)
+                    st.dataframe(
+                        saidas_mes.reset_index(name="Saídas").rename(columns={"mes_saida": "Mês"}),
+                        use_container_width=True
+                    )
                 else:
-                    st.info("Sem dados suficientes.")
-            else:
-                st.info("Sem dados.")
+                    st.info("Sem dados de saída por mês.")
 
-    with tab2:
-        p1, p2 = st.columns(2)
-        with p1:
-            st.markdown("**Pátio Normal - Tipos de Veículo**")
-            if not df_patio.empty and "tipo" in df_patio.columns:
-                st.bar_chart(df_patio["tipo"].astype(str).str.upper().value_counts(), use_container_width=True)
-            else:
-                st.info("Sem dados.")
+            st.markdown("**Comparativo de Entradas x Saídas por Mês**")
+            entradas_df = entradas_mes.reset_index(name="Entradas").rename(columns={"mes_entrada": "Mês"}) if not entradas_mes.empty else pd.DataFrame(columns=["Mês", "Entradas"])
+            saidas_df = saidas_mes.reset_index(name="Saídas").rename(columns={"mes_saida": "Mês"}) if not saidas_mes.empty else pd.DataFrame(columns=["Mês", "Saídas"])
 
-        with p2:
-            st.markdown("**Delegacia - Procedência**")
-            if not df_del.empty and "procedencia" in df_del.columns:
-                st.bar_chart(df_del["procedencia"].astype(str).str.upper().value_counts().head(10), use_container_width=True)
-            else:
-                st.info("Sem dados.")
+            comparativo = pd.merge(entradas_df, saidas_df, on="Mês", how="outer").fillna(0)
 
-    with tab3:
-        p1, p2 = st.columns(2)
-        with p1:
-            st.markdown("**Pátio Normal - Entradas por Agente**")
-            if not df_patio.empty and "agente_entrada" in df_patio.columns:
-                st.bar_chart(df_patio["agente_entrada"].astype(str).str.upper().value_counts().head(10), use_container_width=True)
+            if not comparativo.empty:
+                comparativo = comparativo.sort_values("Mês")
+                st.bar_chart(comparativo.set_index("Mês")[["Entradas", "Saídas"]], use_container_width=True)
+                st.dataframe(comparativo, use_container_width=True)
             else:
-                st.info("Sem dados.")
+                st.info("Sem dados suficientes para o comparativo mensal.")
 
-        with p2:
-            st.markdown("**Delegacia - Entradas por Agente**")
-            if not df_del.empty and "agente_entrada" in df_del.columns:
-                st.bar_chart(df_del["agente_entrada"].astype(str).str.upper().value_counts().head(10), use_container_width=True)
-            else:
-                st.info("Sem dados.")
+        with tab3:
+            p1, p2 = st.columns(2)
+
+            with p1:
+                st.markdown("**Saídas por Agente**")
+                if "agente_saida" in df.columns:
+                    saida_agente = (
+                        df[df["agente_saida"].astype(str).str.strip() != ""]
+                        ["agente_saida"]
+                        .astype(str)
+                        .str.upper()
+                        .value_counts()
+                        .head(10)
+                    )
+                    if not saida_agente.empty:
+                        st.bar_chart(saida_agente, use_container_width=True)
+                    else:
+                        st.info("Sem registros de saída por agente.")
+
+            with p2:
+                st.markdown("**Entradas por Data**")
+                if "data_entrada" in df.columns:
+                    df_datas = df.copy()
+                    df_datas["data_entrada_dt"] = pd.to_datetime(df_datas["data_entrada"], format="%d/%m/%Y", errors="coerce")
+                    entradas_por_data = (
+                        df_datas.dropna(subset=["data_entrada_dt"])
+                        .groupby("data_entrada_dt")
+                        .size()
+                        .sort_index()
+                    )
+                    if not entradas_por_data.empty:
+                        st.line_chart(entradas_por_data, use_container_width=True)
+                    else:
+                        st.info("Sem datas válidas para o gráfico.")
 
 # =====================================================
-# 👥 ADMINISTRAÇÃO
+# 👤 CADASTRO DE USUÁRIO - SOMENTE ADMIN
 # =====================================================
-elif menu == "👥 Administração" and submenu_admin == "Cadastrar Usuário":
+elif menu == "👤 Cadastrar Usuário":
     st.subheader("Cadastro de Usuário")
 
     with st.form("form_cadastro_usuario"):
@@ -1074,7 +798,10 @@ elif menu == "👥 Administração" and submenu_admin == "Cadastrar Usuário":
                 else:
                     st.error("Matrícula já cadastrada.")
 
-elif menu == "👥 Administração" and submenu_admin == "Gerenciar Usuários":
+# =====================================================
+# 📋 GERENCIAR USUÁRIOS - SOMENTE ADMIN
+# =====================================================
+elif menu == "📋 Gerenciar Usuários":
     st.subheader("Gerenciamento de Usuários")
 
     df_agentes = listar_agentes()
@@ -1107,7 +834,10 @@ elif menu == "👥 Administração" and submenu_admin == "Gerenciar Usuários":
                 time.sleep(1)
                 st.rerun()
 
-elif menu == "👥 Administração" and submenu_admin == "Minha Conta":
+# =====================================================
+# 🔐 MINHA CONTA - SOMENTE ADMIN
+# =====================================================
+elif menu == "🔐 Minha Conta":
     st.subheader("Minha Conta")
     st.info("Área para alteração manual da senha do administrador.")
 
@@ -1130,13 +860,12 @@ elif menu == "👥 Administração" and submenu_admin == "Minha Conta":
                 st.success("Senha alterada com sucesso.")
 
 # =====================================================
-# 🚗 OPERAÇÃO DE PÁTIO
+# 🚗 ENTRADA DE VEÍCULO
 # =====================================================
-elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Entrada de Veículo":
+elif menu == "🚗 Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo")
 
     with st.form("entrada"):
-        numero_grv = st.text_input("Número da GRV")
         placa = st.text_input("Placa")
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
@@ -1146,22 +875,44 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Entrada de Ve�
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada"):
-            if not numero_grv or not placa or not marca or not modelo or not cor or not motivo or not agente:
+            if not placa or not marca or not modelo or not cor or not motivo or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             else:
-                registrar_entrada_patio(
-                    numero_grv=numero_grv.strip(),
-                    placa=placa.strip(),
-                    marca=marca.strip(),
-                    modelo=modelo.strip(),
-                    cor=cor.strip(),
-                    tipo=tipo.strip(),
-                    motivo=motivo.strip(),
-                    agente=agente.strip()
+                df = carregar_dados()
+                novo_id = gerar_id(df)
+                agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+                sheet.append_row([
+                    novo_id,
+                    placa.strip().upper(),
+                    marca.strip().upper(),
+                    modelo.strip().upper(),
+                    cor.strip().upper(),
+                    tipo.strip().upper(),
+                    motivo.strip().upper(),
+                    agora.strftime("%d/%m/%Y"),
+                    agora.strftime("%H:%M"),
+                    agente.strip().upper(),
+                    "DEPÓSITO",
+                    "",
+                    "",
+                    "",
+                    ""
+                ])
+
+                registrar_log(
+                    usuario=agente,
+                    acao="ENTRADA DE VEICULO",
+                    detalhes=f"PLACA {placa}"
                 )
+
+                st.cache_data.clear()
                 st.success("✅ Veículo registrado com sucesso!")
 
-elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Saída de Veículo":
+# =====================================================
+# 📤 SAÍDA DE VEÍCULO
+# =====================================================
+elif menu == "📤 Saída de Veículo":
     st.subheader("Registro de Saída de Veículo")
 
     df = carregar_dados()
@@ -1170,14 +921,14 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Saída de Veí
     if df.empty or "status" not in df.columns:
         st.info("Nenhum veículo no depósito.")
     else:
-        df_ativos = df[df["status"].astype(str).str.upper() == STATUS_PATIO]
+        df_ativos = df[df["status"].astype(str).str.upper() == "DEPÓSITO"]
 
         if df_ativos.empty:
             st.info("Nenhum veículo no depósito.")
         else:
             veiculo = st.selectbox(
                 "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str)
+                df_ativos["id"].astype(str) + " - " + df_ativos["placa"].astype(str)
             )
 
             agente_saida = st.text_input(
@@ -1191,14 +942,31 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Saída de Veí
                     st.warning("Informe o agente responsável pela liberação.")
                 else:
                     vid = int(veiculo.split(" - ")[0])
-                    registrar_saida_patio(
-                        id_veiculo=vid,
-                        agente_saida=agente_saida.strip(),
-                        observacoes=obs.strip()
+                    linha = df.index[df["id"] == vid][0] + 2
+
+                    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+                    sheet.update(f"K{linha}:O{linha}", [[
+                        "LIBERADO",
+                        agora.strftime("%d/%m/%Y"),
+                        agora.strftime("%H:%M"),
+                        agente_saida.strip().upper(),
+                        obs.strip().upper()
+                    ]])
+
+                    registrar_log(
+                        usuario=agente_saida,
+                        acao="SAIDA DE VEICULO",
+                        detalhes=f"PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
                     )
+
+                    st.cache_data.clear()
                     st.success("🚗 Veículo liberado com sucesso!")
 
-elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Retirada de Pertences":
+# =====================================================
+# 🧾 RETIRADA DE PERTENCES
+# =====================================================
+elif menu == "🧾 Retirada de Pertences":
     st.subheader("Retirada de Pertences do Veículo Apreendido")
 
     df = carregar_dados()
@@ -1207,15 +975,14 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Retirada de Pe
     if df.empty or "status" not in df.columns:
         st.info("Nenhum veículo cadastrado.")
     else:
-        df_ativos = df[df["status"].astype(str).str.upper() == STATUS_PATIO]
+        df_ativos = df[df["status"].astype(str).str.upper() == "DEPÓSITO"]
 
         if df_ativos.empty:
             st.info("Não há veículos atualmente no depósito para retirada de pertences.")
         else:
             veiculo = st.selectbox(
                 "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - GRV " +
-                df_ativos["numero_grv"].astype(str) + " - " +
+                df_ativos["id"].astype(str) + " - " +
                 df_ativos["placa"].astype(str) + " - " +
                 df_ativos["marca"].astype(str) + " - " +
                 df_ativos["modelo"].astype(str)
@@ -1237,7 +1004,7 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Retirada de Pe
                     st.warning("Preencha todos os campos obrigatórios.")
                 else:
                     id_veiculo = int(veiculo.split(" - ")[0])
-                    placa_veiculo = veiculo.split(" - ")[2]
+                    placa_veiculo = veiculo.split(" - ")[1]
 
                     registrar_retirada_pertence(
                         id_veiculo=id_veiculo,
@@ -1254,57 +1021,192 @@ elif menu == "🚗 Operação de Pátio" and submenu_operacao == "Retirada de Pe
                     st.success("✅ Retirada de pertences registrada com sucesso.")
 
 # =====================================================
-# 🚔 DELEGACIA
+# 🚔 ENTRADA DE VEÍCULO DA DELEGACIA
 # =====================================================
-elif menu == "🚔 Delegacia" and submenu_delegacia == "Dashboard Delegacia":
-    st.subheader("Dashboard - Veículos da Delegacia")
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
+    st.subheader("Registro de Entrada de Veículo - Delegacia")
+
+    with st.form("entrada_delegacia"):
+        placa = st.text_input("Placa")
+        marca = st.text_input("Marca")
+        modelo = st.text_input("Modelo")
+        cor = st.text_input("Cor")
+        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
+        procedencia = st.text_input("Procedência / Delegacia de Origem")
+        agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
+
+        if st.form_submit_button("Registrar Entrada - Delegacia"):
+            if not placa or not marca or not modelo or not cor or not procedencia or not agente:
+                st.warning("Preencha todos os campos obrigatórios.")
+            else:
+                registrar_entrada_delegacia(
+                    placa=placa.strip(),
+                    marca=marca.strip(),
+                    modelo=modelo.strip(),
+                    cor=cor.strip(),
+                    tipo=tipo.strip(),
+                    procedencia=procedencia.strip(),
+                    agente_entrada=agente.strip()
+                )
+                st.success("✅ Veículo da delegacia registrado com sucesso.")
+
+# =====================================================
+# 🚔 SAÍDA DE VEÍCULO DA DELEGACIA
+# =====================================================
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
+    st.subheader("Registro de Saída de Veículo - Delegacia")
 
     df_del = carregar_dados_delegacia()
     df_del = preparar_dataframe(df_del)
 
-    c1, c2 = st.columns(2)
-    data_inicio = c1.date_input("Período inicial", value=date(date.today().year, 1, 1), key="dash_del_inicio")
-    data_fim = c2.date_input("Período final", value=date.today(), key="dash_del_fim")
+    if df_del.empty or "status" not in df_del.columns:
+        st.info("Nenhum veículo da delegacia registrado.")
+    else:
+        df_ativos = df_del[df_del["status"].astype(str).str.upper() == "DEPÓSITO"]
 
-    if data_inicio > data_fim:
-        st.error("A data inicial não pode ser maior que a data final.")
-        st.stop()
+        if df_ativos.empty:
+            st.info("Nenhum veículo da delegacia no depósito.")
+        else:
+            veiculo = st.selectbox(
+                "Selecione o veículo da delegacia",
+                df_ativos["id"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
+            )
+
+            agente_saida = st.text_input(
+                "Agente Responsável pela Liberação",
+                value=st.session_state['nome_usuario'],
+                key="agente_saida_delegacia"
+            )
+            obs = st.text_area("Observações", key="obs_saida_delegacia")
+
+            if st.button("Registrar Saída - Delegacia"):
+                if not agente_saida:
+                    st.warning("Informe o agente responsável pela liberação.")
+                else:
+                    id_veiculo = int(veiculo.split(" - ")[0])
+
+                    registrar_saida_delegacia(
+                        id_veiculo=id_veiculo,
+                        agente_saida=agente_saida.strip(),
+                        observacoes=obs.strip()
+                    )
+
+                    st.success("✅ Saída de veículo da delegacia registrada com sucesso.")
+
+# =====================================================
+# 🚔 CONSULTA DE VEÍCULOS DA DELEGACIA
+# =====================================================
+elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
+    st.subheader("Consulta de Veículos Vindos da Delegacia")
+
+    df_del = carregar_dados_delegacia()
+    df_del = preparar_dataframe(df_del)
 
     if df_del.empty:
-        st.info("Ainda não há dados de veículos da delegacia para exibir.")
+        st.info("Nenhum veículo da delegacia registrado.")
     else:
-        df_del = filtrar_por_periodo(df_del, "data_entrada", data_inicio, data_fim)
-        df_del = montar_coluna_mes(df_del, "data_entrada", "mes_entrada")
-        df_del = montar_coluna_mes(df_del, "data_saida", "mes_saida")
+        c1, c2, c3, c4 = st.columns(4)
+        placa_del = c1.text_input("Placa", key="placa_del")
+        marca_del = c2.text_input("Marca", key="marca_del")
+        procedencia_del = c3.text_input("Procedência", key="procedencia_del")
+        status_del = c4.selectbox("Status", ["Todos", "DEPÓSITO", "LIBERADO"], key="status_del")
 
-        total_registros = len(df_del)
-        total_deposito = len(df_del[df_del["status"].astype(str).str.upper() == STATUS_PATIO]) if "status" in df_del.columns else 0
-        total_liberados = len(df_del[df_del["status"].astype(str).str.upper() == STATUS_LIBERADO]) if "status" in df_del.columns else 0
-        total_motos = len(df_del[df_del["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df_del.columns else 0
-        total_automoveis = len(df_del[df_del["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df_del.columns else 0
-        total_caminhoes = len(df_del[df_del["tipo"].astype(str).str.upper() == "CAMINHÃO"]) if "tipo" in df_del.columns else 0
+        if placa_del and "placa" in df_del.columns:
+            df_del = df_del[df_del["placa"].astype(str).str.contains(placa_del.upper(), na=False)]
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            card_metrica("Total Delegacia", total_registros)
-        with c2:
-            card_metrica("No Depósito", total_deposito)
-        with c3:
-            card_metrica("Liberados", total_liberados)
-        with c4:
-            card_metrica("Motocicletas", total_motos)
-        with c5:
-            card_metrica("Automóveis", total_automoveis)
+        if marca_del and "marca" in df_del.columns:
+            df_del = df_del[df_del["marca"].astype(str).str.contains(marca_del, case=False, na=False)]
 
-        c6, c7 = st.columns(2)
-        with c6:
-            card_metrica("Caminhões", total_caminhoes)
-        with c7:
-            card_metrica("Saldo Operacional", total_deposito - total_liberados)
+        if procedencia_del and "procedencia" in df_del.columns:
+            df_del = df_del[df_del["procedencia"].astype(str).str.contains(procedencia_del, case=False, na=False)]
 
-        st.markdown("---")
+        if status_del != "Todos" and "status" in df_del.columns:
+            df_del = df_del[df_del["status"].astype(str).str.upper() == status_del]
 
-        tab1, tab2, tab3 = st.tabs(["Visão Geral", "Movimentação Mensal", "Origem e Produtividade"])
+        st.dataframe(df_del, use_container_width=True)
 
-        with tab1:
-            g1, g2
+# =====================================================
+# 🔎 CONSULTA / INVENTÁRIO
+# =====================================================
+elif menu == "🔎 Consulta / Inventário":
+    st.subheader("Consulta de Veículos")
+
+    tab1, tab2 = st.tabs(["Veículos", "Histórico de Retirada de Pertences"])
+
+    with tab1:
+        df = carregar_dados()
+        df = preparar_dataframe(df)
+
+        if df.empty:
+            st.info("Nenhum registro encontrado.")
+        else:
+            col1, col2, col3, col4 = st.columns(4)
+            placa = col1.text_input("Placa")
+            marca = col2.text_input("Marca")
+            data = col3.text_input("Data de Entrada (dd/mm/aaaa)")
+            status = col4.selectbox("Status", ["Todos", "DEPÓSITO", "LIBERADO"])
+
+            if placa and "placa" in df.columns:
+                df = df[df["placa"].astype(str).str.contains(placa.upper(), na=False)]
+
+            if marca and "marca" in df.columns:
+                df = df[df["marca"].astype(str).str.contains(marca, case=False, na=False)]
+
+            if data and "data_entrada" in df.columns:
+                df = df[df["data_entrada"].astype(str) == data]
+
+            if status != "Todos" and "status" in df.columns:
+                df = df[df["status"].astype(str).str.upper() == status]
+
+            st.dataframe(df, use_container_width=True)
+
+    with tab2:
+        st.subheader("Histórico de Retirada de Pertences")
+
+        df_ret = carregar_retiradas()
+
+        if df_ret.empty:
+            st.info("Nenhuma retirada de pertences registrada.")
+        else:
+            colr1, colr2, colr3 = st.columns(3)
+            filtro_placa = colr1.text_input("Filtrar por placa")
+            filtro_nome = colr2.text_input("Filtrar por nome do retirante")
+            filtro_doc = colr3.text_input("Filtrar por documento")
+
+            if filtro_placa and "placa" in df_ret.columns:
+                df_ret = df_ret[df_ret["placa"].astype(str).str.contains(filtro_placa.upper(), na=False)]
+
+            if filtro_nome and "nome_retirante" in df_ret.columns:
+                df_ret = df_ret[df_ret["nome_retirante"].astype(str).str.contains(filtro_nome, case=False, na=False)]
+
+            if filtro_doc and "documento_retirante" in df_ret.columns:
+                df_ret = df_ret[df_ret["documento_retirante"].astype(str).str.contains(filtro_doc, case=False, na=False)]
+
+            st.dataframe(df_ret, use_container_width=True)
+
+# =====================================================
+# 📜 LOG DE AUDITORIA - SOMENTE ADMIN
+# =====================================================
+elif menu == "📜 Log de Auditoria":
+    st.subheader("Log de Auditoria do Sistema")
+
+    df_log = carregar_logs()
+
+    if df_log.empty:
+        st.info("Nenhum log registrado.")
+    else:
+        c1, c2, c3 = st.columns(3)
+        filtro_usuario = c1.text_input("Filtrar por usuário")
+        filtro_acao = c2.text_input("Filtrar por ação")
+        filtro_data = c3.text_input("Filtrar por data (dd/mm/aaaa)")
+
+        if filtro_usuario and "usuario" in df_log.columns:
+            df_log = df_log[df_log["usuario"].astype(str).str.contains(filtro_usuario, case=False, na=False)]
+
+        if filtro_acao and "acao" in df_log.columns:
+            df_log = df_log[df_log["acao"].astype(str).str.contains(filtro_acao, case=False, na=False)]
+
+        if filtro_data and "data" in df_log.columns:
+            df_log = df_log[df_log["data"].astype(str) == filtro_data]
+
+        st.dataframe(df_log, use_container_width=True)
