@@ -54,6 +54,11 @@ st.markdown("""
 st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia e auditoria</div>', unsafe_allow_html=True)
 
+TZ = ZoneInfo("America/Sao_Paulo")
+STATUS_DEPOSITO = "DEPÓSITO"
+STATUS_LIBERADO = "LIBERADO"
+
+
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
 # =====================================================
@@ -266,6 +271,7 @@ def resetar_senha_gestor(id_gestor, nova_senha="1234"):
     conn.commit()
     conn.close()
 
+
 # =====================================================
 # ---------------- TELA DE LOGIN ----------------------
 # =====================================================
@@ -326,13 +332,14 @@ if not st.session_state['logado']:
 
     st.stop()
 
+
 # =====================================================
 # ----------- TROCA DE SENHA NO PRIMEIRO ACESSO -------
 # =====================================================
 
 if st.session_state['primeiro_acesso']:
     st.warning("⚠️ Por segurança, altere sua senha inicial.")
-    with st.form("form_troca_senha"):
+    with st.form("form_troca_senha", clear_on_submit=True):
         nova_s1 = st.text_input("Nova Senha", type="password")
         nova_s2 = st.text_input("Confirme a Nova Senha", type="password")
 
@@ -351,6 +358,7 @@ if st.session_state['primeiro_acesso']:
                 st.error("As senhas não coincidem ou são muito curtas.")
     st.stop()
 
+
 # =====================================================
 # ---------------- SIDEBAR LOGADO ---------------------
 # =====================================================
@@ -360,6 +368,7 @@ st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
 
 if st.sidebar.button("Sair / Logout"):
     logout()
+
 
 # =====================================================
 # ------------- CONEXÃO GOOGLE SHEETS -----------------
@@ -447,6 +456,7 @@ retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
 delegacia_sheet = conectar_aba_delegacia()
 
+
 # =====================================================
 # ---------------- FUNÇÕES AUXILIARES -----------------
 # =====================================================
@@ -455,40 +465,32 @@ delegacia_sheet = conectar_aba_delegacia()
 def carregar_dados():
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
-
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
-
     return df
 
 @st.cache_data(ttl=60)
 def carregar_retiradas():
     dados = retirada_sheet.get_all_records()
     df = pd.DataFrame(dados)
-
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
-
     return df
 
 @st.cache_data(ttl=60)
 def carregar_logs():
     dados = log_sheet.get_all_records()
     df = pd.DataFrame(dados)
-
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
-
     return df
 
 @st.cache_data(ttl=60)
 def carregar_dados_delegacia():
     dados = delegacia_sheet.get_all_records()
     df = pd.DataFrame(dados)
-
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
-
     return df
 
 def gerar_id(df):
@@ -518,7 +520,7 @@ def gerar_id_retirada(df):
     return int(ids_validos.max()) + 1
 
 def registrar_log(usuario, acao, detalhes=""):
-    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+    agora = datetime.now(TZ)
     log_sheet.append_row([
         agora.strftime("%d/%m/%Y"),
         agora.strftime("%H:%M:%S"),
@@ -527,98 +529,8 @@ def registrar_log(usuario, acao, detalhes=""):
         str(detalhes).upper()
     ])
 
-def registrar_retirada_pertence(
-    id_veiculo,
-    placa,
-    data_retirada,
-    hora_retirada,
-    nome_retirante,
-    documento_retirante,
-    itens_retirados,
-    observacao_retirada,
-    agente_responsavel
-):
-    df_retiradas = carregar_retiradas()
-    novo_id = gerar_id_retirada(df_retiradas)
-
-    retirada_sheet.append_row([
-        novo_id,
-        id_veiculo,
-        str(placa).upper(),
-        str(data_retirada),
-        str(hora_retirada),
-        str(nome_retirante).upper(),
-        str(documento_retirante).upper(),
-        str(itens_retirados).upper(),
-        str(observacao_retirada).upper(),
-        str(agente_responsavel).upper()
-    ])
-
-    registrar_log(
-        usuario=agente_responsavel,
-        acao="RETIRADA DE PERTENCE",
-        detalhes=f"PLACA {placa} | RETIRANTE {nome_retirante} | DOC {documento_retirante}"
-    )
-
-    st.cache_data.clear()
-
-def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, procedencia, agente_entrada):
-    df = carregar_dados_delegacia()
-    novo_id = gerar_id(df)
-    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-    delegacia_sheet.append_row([
-        novo_id,
-        str(numero_grv).upper(),
-        str(placa).upper(),
-        str(marca).upper(),
-        str(modelo).upper(),
-        str(cor).upper(),
-        str(tipo).upper(),
-        str(procedencia).upper(),
-        agora.strftime("%d/%m/%Y"),
-        agora.strftime("%H:%M"),
-        str(agente_entrada).upper(),
-        "DEPÓSITO",
-        "",
-        "",
-        "",
-        ""
-    ])
-
-    registrar_log(
-        usuario=agente_entrada,
-        acao="ENTRADA VEICULO DELEGACIA",
-        detalhes=f"GRV {numero_grv} | PLACA {placa} | PROCEDENCIA {procedencia}"
-    )
-
-    st.cache_data.clear()
-
-def registrar_saida_delegacia(id_veiculo, agente_saida, observacoes=""):
-    df = carregar_dados_delegacia()
-    df = preparar_dataframe(df)
-
-    linha = df.index[df["id"] == id_veiculo][0] + 2
-    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-    delegacia_sheet.update(f"L{linha}:P{linha}", [[
-        "LIBERADO",
-        agora.strftime("%d/%m/%Y"),
-        agora.strftime("%H:%M"),
-        str(agente_saida).upper(),
-        str(observacoes).upper()
-    ]])
-
-    placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
-    numero_grv = df.loc[df["id"] == id_veiculo, "numero_grv"].values[0]
-
-    registrar_log(
-        usuario=agente_saida,
-        acao="SAIDA VEICULO DELEGACIA",
-        detalhes=f"GRV {numero_grv} | PLACA {placa}"
-    )
-
-    st.cache_data.clear()
+def formatar_hora(hora_obj):
+    return hora_obj.strftime("%H:%M")
 
 def preparar_dataframe(df):
     if df.empty:
@@ -669,6 +581,151 @@ def card_metrica(titulo, valor):
         </div>
     """, unsafe_allow_html=True)
 
+def registrar_retirada_pertence(
+    id_veiculo,
+    placa,
+    data_retirada,
+    hora_retirada,
+    nome_retirante,
+    documento_retirante,
+    itens_retirados,
+    observacao_retirada,
+    agente_responsavel
+):
+    df_retiradas = carregar_retiradas()
+    novo_id = gerar_id_retirada(df_retiradas)
+
+    retirada_sheet.append_row([
+        novo_id,
+        id_veiculo,
+        str(placa).upper(),
+        str(data_retirada),
+        str(hora_retirada),
+        str(nome_retirante).upper(),
+        str(documento_retirante).upper(),
+        str(itens_retirados).upper(),
+        str(observacao_retirada).upper(),
+        str(agente_responsavel).upper()
+    ])
+
+    registrar_log(
+        usuario=agente_responsavel,
+        acao="RETIRADA DE PERTENCE",
+        detalhes=f"PLACA {placa} | RETIRANTE {nome_retirante} | DOC {documento_retirante}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, procedencia, data_entrada, hora_entrada, agente_entrada):
+    df = carregar_dados_delegacia()
+    novo_id = gerar_id(df)
+
+    delegacia_sheet.append_row([
+        novo_id,
+        str(numero_grv).upper(),
+        str(placa).upper(),
+        str(marca).upper(),
+        str(modelo).upper(),
+        str(cor).upper(),
+        str(tipo).upper(),
+        str(procedencia).upper(),
+        data_entrada.strftime("%d/%m/%Y"),
+        formatar_hora(hora_entrada),
+        str(agente_entrada).upper(),
+        STATUS_DEPOSITO,
+        "",
+        "",
+        "",
+        ""
+    ])
+
+    registrar_log(
+        usuario=agente_entrada,
+        acao="ENTRADA VEICULO DELEGACIA",
+        detalhes=f"GRV {numero_grv} | PLACA {placa} | PROCEDENCIA {procedencia}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_saida_delegacia(id_veiculo, data_saida, hora_saida, agente_saida, observacoes=""):
+    df = carregar_dados_delegacia()
+    df = preparar_dataframe(df)
+
+    linha = df.index[df["id"] == id_veiculo][0] + 2
+
+    delegacia_sheet.update(f"L{linha}:P{linha}", [[
+        STATUS_LIBERADO,
+        data_saida.strftime("%d/%m/%Y"),
+        formatar_hora(hora_saida),
+        str(agente_saida).upper(),
+        str(observacoes).upper()
+    ]])
+
+    placa = df.loc[df["id"] == id_veiculo, "placa"].values[0]
+    numero_grv = df.loc[df["id"] == id_veiculo, "numero_grv"].values[0]
+
+    registrar_log(
+        usuario=agente_saida,
+        acao="SAIDA VEICULO DELEGACIA",
+        detalhes=f"GRV {numero_grv} | PLACA {placa}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_entrada_patio(numero_grv, placa, marca, modelo, cor, tipo, motivo, data_entrada, hora_entrada, agente):
+    df = carregar_dados()
+    novo_id = gerar_id(df)
+
+    sheet.append_row([
+        novo_id,
+        str(numero_grv).upper(),
+        str(placa).upper(),
+        str(marca).upper(),
+        str(modelo).upper(),
+        str(cor).upper(),
+        str(tipo).upper(),
+        str(motivo).upper(),
+        data_entrada.strftime("%d/%m/%Y"),
+        formatar_hora(hora_entrada),
+        str(agente).upper(),
+        STATUS_DEPOSITO,
+        "",
+        "",
+        "",
+        ""
+    ])
+
+    registrar_log(
+        usuario=agente,
+        acao="ENTRADA DE VEICULO",
+        detalhes=f"GRV {numero_grv} | PLACA {placa}"
+    )
+
+    st.cache_data.clear()
+
+def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, observacoes=""):
+    df = carregar_dados()
+    df = preparar_dataframe(df)
+
+    linha = df.index[df["id"] == id_veiculo][0] + 2
+
+    sheet.update(f"L{linha}:P{linha}", [[
+        STATUS_LIBERADO,
+        data_saida.strftime("%d/%m/%Y"),
+        formatar_hora(hora_saida),
+        str(agente_saida).upper(),
+        str(observacoes).upper()
+    ]])
+
+    registrar_log(
+        usuario=agente_saida,
+        acao="SAIDA DE VEICULO",
+        detalhes=f"GRV {df.loc[df['id'] == id_veiculo, 'numero_grv'].values[0]} | PLACA {df.loc[df['id'] == id_veiculo, 'placa'].values[0]}"
+    )
+
+    st.cache_data.clear()
+
+
 # =====================================================
 # ---------------- MENU -------------------------------
 # =====================================================
@@ -716,9 +773,11 @@ if menu == "🚔 Delegacia":
         ]
     )
 
+
 # =====================================================
 # 📊 DASHBOARD
 # =====================================================
+
 if menu == "📊 Dashboard":
     st.subheader("Dashboard Operacional")
 
@@ -732,8 +791,8 @@ if menu == "📊 Dashboard":
         df = montar_coluna_mes(df, "data_saida", "mes_saida")
 
         total_registros = len(df)
-        total_deposito = len(df[df["status"].astype(str).str.upper() == "DEPÓSITO"]) if "status" in df.columns else 0
-        total_liberados = len(df[df["status"].astype(str).str.upper() == "LIBERADO"]) if "status" in df.columns else 0
+        total_deposito = len(df[df["status"].astype(str).str.upper() == STATUS_DEPOSITO]) if "status" in df.columns else 0
+        total_liberados = len(df[df["status"].astype(str).str.upper() == STATUS_LIBERADO]) if "status" in df.columns else 0
         total_motos = len(df[df["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df.columns else 0
         total_automoveis = len(df[df["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df.columns else 0
         total_caminhoes = len(df[df["tipo"].astype(str).str.upper() == "CAMINHÃO"]) if "tipo" in df.columns else 0
@@ -752,7 +811,7 @@ if menu == "📊 Dashboard":
 
         st.markdown("")
 
-        c6, c7 = st.columns(2)
+        c6 = st.columns(1)[0]
         with c6:
             card_metrica("Caminhões", total_caminhoes)
 
@@ -876,15 +935,17 @@ if menu == "📊 Dashboard":
                     else:
                         st.info("Sem datas válidas para o gráfico.")
 
+
 # =====================================================
 # 👤 CADASTRO DE USUÁRIO - ADMIN E GESTOR
 # =====================================================
+
 elif menu == "👤 Cadastrar Usuário":
     st.subheader("Cadastro de Usuário")
 
     tipo_novo_usuario = st.selectbox("Tipo de Usuário", ["Agente", "Gestor"])
 
-    with st.form("form_cadastro_usuario"):
+    with st.form("form_cadastro_usuario", clear_on_submit=True):
         if tipo_novo_usuario == "Agente":
             identificador = st.text_input("Matrícula")
         else:
@@ -915,9 +976,11 @@ elif menu == "👤 Cadastrar Usuário":
                 else:
                     st.error("Usuário/Matrícula já cadastrado.")
 
+
 # =====================================================
 # 📋 GERENCIAR USUÁRIOS - ADMIN E GESTOR
 # =====================================================
+
 elif menu == "📋 Gerenciar Usuários":
     st.subheader("Gerenciamento de Usuários")
 
@@ -985,16 +1048,18 @@ elif menu == "📋 Gerenciar Usuários":
                     time.sleep(1)
                     st.rerun()
 
+
 # =====================================================
 # 🔐 MINHA CONTA - ADMIN E GESTOR
 # =====================================================
+
 elif menu == "🔐 Minha Conta":
     st.subheader("Minha Conta")
 
     if st.session_state['tipo_usuario'] == 'admin':
         st.info("Área para alteração manual da senha do administrador.")
 
-        with st.form("form_troca_senha_admin_manual"):
+        with st.form("form_troca_senha_admin_manual", clear_on_submit=True):
             senha_atual = st.text_input("Senha Atual", type="password")
             nova_senha = st.text_input("Nova Senha", type="password")
             confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
@@ -1015,7 +1080,7 @@ elif menu == "🔐 Minha Conta":
     elif st.session_state['tipo_usuario'] == 'gestor':
         st.info("Área para alteração da senha do gestor.")
 
-        with st.form("form_troca_senha_gestor_manual"):
+        with st.form("form_troca_senha_gestor_manual", clear_on_submit=True):
             senha_atual = st.text_input("Senha Atual", type="password")
             nova_senha = st.text_input("Nova Senha", type="password")
             confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
@@ -1031,13 +1096,17 @@ elif menu == "🔐 Minha Conta":
                     alterar_senha("gestor", st.session_state['usuario_id'], nova_senha)
                     st.success("Senha alterada com sucesso.")
 
+
 # =====================================================
 # 🚗 ENTRADA DE VEÍCULO
 # =====================================================
+
 elif menu == "🚗 Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo")
 
-    with st.form("entrada"):
+    agora = datetime.now(TZ)
+
+    with st.form("entrada", clear_on_submit=True):
         numero_grv = st.text_input("Número da GRV")
         placa = st.text_input("Placa")
         marca = st.text_input("Marca")
@@ -1045,47 +1114,33 @@ elif menu == "🚗 Entrada de Veículo":
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
         motivo = st.text_area("Motivo da Apreensão")
+        data_entrada = st.date_input("Data da Entrada", value=agora.date())
+        hora_entrada = st.time_input("Hora da Entrada", value=agora.time().replace(second=0, microsecond=0))
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada"):
             if not numero_grv or not placa or not marca or not modelo or not cor or not motivo or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             else:
-                df = carregar_dados()
-                novo_id = gerar_id(df)
-                agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-                sheet.append_row([
-                    novo_id,
-                    numero_grv.strip().upper(),
-                    placa.strip().upper(),
-                    marca.strip().upper(),
-                    modelo.strip().upper(),
-                    cor.strip().upper(),
-                    tipo.strip().upper(),
-                    motivo.strip().upper(),
-                    agora.strftime("%d/%m/%Y"),
-                    agora.strftime("%H:%M"),
-                    agente.strip().upper(),
-                    "DEPÓSITO",
-                    "",
-                    "",
-                    "",
-                    ""
-                ])
-
-                registrar_log(
-                    usuario=agente,
-                    acao="ENTRADA DE VEICULO",
-                    detalhes=f"GRV {numero_grv} | PLACA {placa}"
+                registrar_entrada_patio(
+                    numero_grv=numero_grv.strip(),
+                    placa=placa.strip(),
+                    marca=marca.strip(),
+                    modelo=modelo.strip(),
+                    cor=cor.strip(),
+                    tipo=tipo.strip(),
+                    motivo=motivo.strip(),
+                    data_entrada=data_entrada,
+                    hora_entrada=hora_entrada,
+                    agente=agente.strip()
                 )
-
-                st.cache_data.clear()
                 st.success("✅ Veículo registrado com sucesso!")
+
 
 # =====================================================
 # 📤 SAÍDA DE VEÍCULO
 # =====================================================
+
 elif menu == "📤 Saída de Veículo":
     st.subheader("Registro de Saída de Veículo")
 
@@ -1095,51 +1150,45 @@ elif menu == "📤 Saída de Veículo":
     if df.empty or "status" not in df.columns:
         st.info("Nenhum veículo no depósito.")
     else:
-        df_ativos = df[df["status"].astype(str).str.upper() == "DEPÓSITO"]
+        df_ativos = df[df["status"].astype(str).str.upper() == STATUS_DEPOSITO]
 
         if df_ativos.empty:
             st.info("Nenhum veículo no depósito.")
         else:
-            veiculo = st.selectbox(
-                "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str)
-            )
+            agora = datetime.now(TZ)
 
-            agente_saida = st.text_input(
-                "Agente Responsável pela Liberação",
-                value=st.session_state['nome_usuario']
-            )
-            obs = st.text_area("Observações")
+            with st.form("form_saida_veiculo", clear_on_submit=True):
+                veiculo = st.selectbox(
+                    "Selecione o veículo",
+                    df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str)
+                )
+                data_saida = st.date_input("Data da Saída", value=agora.date(), key="data_saida_patio")
+                hora_saida = st.time_input("Hora da Saída", value=agora.time().replace(second=0, microsecond=0), key="hora_saida_patio")
+                agente_saida = st.text_input(
+                    "Agente Responsável pela Liberação",
+                    value=st.session_state['nome_usuario']
+                )
+                obs = st.text_area("Observações")
 
-            if st.button("Registrar Saída"):
-                if not agente_saida:
-                    st.warning("Informe o agente responsável pela liberação.")
-                else:
-                    vid = int(veiculo.split(" - ")[0])
-                    linha = df.index[df["id"] == vid][0] + 2
+                if st.form_submit_button("Registrar Saída"):
+                    if not agente_saida:
+                        st.warning("Informe o agente responsável pela liberação.")
+                    else:
+                        vid = int(veiculo.split(" - ")[0])
+                        registrar_saida_patio(
+                            id_veiculo=vid,
+                            data_saida=data_saida,
+                            hora_saida=hora_saida,
+                            agente_saida=agente_saida.strip(),
+                            observacoes=obs.strip()
+                        )
+                        st.success("🚗 Veículo liberado com sucesso!")
 
-                    agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-                    sheet.update(f"L{linha}:P{linha}", [[
-                        "LIBERADO",
-                        agora.strftime("%d/%m/%Y"),
-                        agora.strftime("%H:%M"),
-                        agente_saida.strip().upper(),
-                        obs.strip().upper()
-                    ]])
-
-                    registrar_log(
-                        usuario=agente_saida,
-                        acao="SAIDA DE VEICULO",
-                        detalhes=f"GRV {df.loc[df['id'] == vid, 'numero_grv'].values[0]} | PLACA {df.loc[df['id'] == vid, 'placa'].values[0]}"
-                    )
-
-                    st.cache_data.clear()
-                    st.success("🚗 Veículo liberado com sucesso!")
 
 # =====================================================
 # 🧾 RETIRADA DE PERTENCES
 # =====================================================
+
 elif menu == "🧾 Retirada de Pertences":
     st.subheader("Retirada de Pertences do Veículo Apreendido")
 
@@ -1149,59 +1198,64 @@ elif menu == "🧾 Retirada de Pertences":
     if df.empty or "status" not in df.columns:
         st.info("Nenhum veículo cadastrado.")
     else:
-        df_ativos = df[df["status"].astype(str).str.upper() == "DEPÓSITO"]
+        df_ativos = df[df["status"].astype(str).str.upper() == STATUS_DEPOSITO]
 
         if df_ativos.empty:
             st.info("Não há veículos atualmente no depósito para retirada de pertences.")
         else:
-            veiculo = st.selectbox(
-                "Selecione o veículo",
-                df_ativos["id"].astype(str) + " - GRV " +
-                df_ativos["numero_grv"].astype(str) + " - " +
-                df_ativos["placa"].astype(str) + " - " +
-                df_ativos["marca"].astype(str) + " - " +
-                df_ativos["modelo"].astype(str)
-            )
+            agora_sp = datetime.now(TZ)
 
-            col1, col2 = st.columns(2)
-            agora_sp = datetime.now(ZoneInfo("America/Sao_Paulo"))
-            data_retirada = col1.date_input("Data da Retirada", value=agora_sp.date())
-            hora_retirada = col2.time_input("Hora da Retirada", value=agora_sp.time().replace(second=0, microsecond=0))
+            with st.form("form_retirada_pertences", clear_on_submit=True):
+                veiculo = st.selectbox(
+                    "Selecione o veículo",
+                    df_ativos["id"].astype(str) + " - GRV " +
+                    df_ativos["numero_grv"].astype(str) + " - " +
+                    df_ativos["placa"].astype(str) + " - " +
+                    df_ativos["marca"].astype(str) + " - " +
+                    df_ativos["modelo"].astype(str)
+                )
 
-            nome_retirante = st.text_input("Nome Completo da Pessoa que Retirou o Pertence")
-            documento_retirante = st.text_input("Documento da Pessoa que Retirou")
-            itens_retirados = st.text_area("Itens Retirados do Veículo")
-            observacao_retirada = st.text_area("Observação da Retirada")
-            agente_responsavel = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
+                data_retirada = st.date_input("Data da Retirada", value=agora_sp.date())
+                hora_retirada = st.time_input("Hora da Retirada", value=agora_sp.time().replace(second=0, microsecond=0))
 
-            if st.button("Registrar Retirada de Pertences"):
-                if not nome_retirante or not documento_retirante or not itens_retirados or not agente_responsavel:
-                    st.warning("Preencha todos os campos obrigatórios.")
-                else:
-                    id_veiculo = int(veiculo.split(" - ")[0])
-                    placa_veiculo = veiculo.split(" - ")[2]
+                nome_retirante = st.text_input("Nome Completo da Pessoa que Retirou o Pertence")
+                documento_retirante = st.text_input("Documento da Pessoa que Retirou")
+                itens_retirados = st.text_area("Itens Retirados do Veículo")
+                observacao_retirada = st.text_area("Observação da Retirada")
+                agente_responsavel = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
-                    registrar_retirada_pertence(
-                        id_veiculo=id_veiculo,
-                        placa=placa_veiculo,
-                        data_retirada=data_retirada.strftime("%d/%m/%Y"),
-                        hora_retirada=hora_retirada.strftime("%H:%M"),
-                        nome_retirante=nome_retirante.strip(),
-                        documento_retirante=documento_retirante.strip(),
-                        itens_retirados=itens_retirados.strip(),
-                        observacao_retirada=observacao_retirada.strip(),
-                        agente_responsavel=agente_responsavel.strip()
-                    )
+                if st.form_submit_button("Registrar Retirada de Pertences"):
+                    if not nome_retirante or not documento_retirante or not itens_retirados or not agente_responsavel:
+                        st.warning("Preencha todos os campos obrigatórios.")
+                    else:
+                        id_veiculo = int(veiculo.split(" - ")[0])
+                        placa_veiculo = veiculo.split(" - ")[2]
 
-                    st.success("✅ Retirada de pertences registrada com sucesso.")
+                        registrar_retirada_pertence(
+                            id_veiculo=id_veiculo,
+                            placa=placa_veiculo,
+                            data_retirada=data_retirada.strftime("%d/%m/%Y"),
+                            hora_retirada=formatar_hora(hora_retirada),
+                            nome_retirante=nome_retirante.strip(),
+                            documento_retirante=documento_retirante.strip(),
+                            itens_retirados=itens_retirados.strip(),
+                            observacao_retirada=observacao_retirada.strip(),
+                            agente_responsavel=agente_responsavel.strip()
+                        )
+
+                        st.success("✅ Retirada de pertences registrada com sucesso.")
+
 
 # =====================================================
 # 🚔 ENTRADA DE VEÍCULO DA DELEGACIA
 # =====================================================
+
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo - Delegacia")
 
-    with st.form("entrada_delegacia"):
+    agora = datetime.now(TZ)
+
+    with st.form("entrada_delegacia", clear_on_submit=True):
         numero_grv = st.text_input("Número da GRV")
         placa = st.text_input("Placa")
         marca = st.text_input("Marca")
@@ -1209,6 +1263,8 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
         procedencia = st.text_input("Procedência / Delegacia de Origem")
+        data_entrada = st.date_input("Data da Entrada", value=agora.date(), key="data_entrada_del")
+        hora_entrada = st.time_input("Hora da Entrada", value=agora.time().replace(second=0, microsecond=0), key="hora_entrada_del")
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada - Delegacia"):
@@ -1223,13 +1279,17 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
                     cor=cor.strip(),
                     tipo=tipo.strip(),
                     procedencia=procedencia.strip(),
+                    data_entrada=data_entrada,
+                    hora_entrada=hora_entrada,
                     agente_entrada=agente.strip()
                 )
                 st.success("✅ Veículo da delegacia registrado com sucesso.")
 
+
 # =====================================================
 # 🚔 SAÍDA DE VEÍCULO DA DELEGACIA
 # =====================================================
+
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
     st.subheader("Registro de Saída de Veículo - Delegacia")
 
@@ -1239,40 +1299,48 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
     if df_del.empty or "status" not in df_del.columns:
         st.info("Nenhum veículo da delegacia registrado.")
     else:
-        df_ativos = df_del[df_del["status"].astype(str).str.upper() == "DEPÓSITO"]
+        df_ativos = df_del[df_del["status"].astype(str).str.upper() == STATUS_DEPOSITO]
 
         if df_ativos.empty:
             st.info("Nenhum veículo da delegacia no depósito.")
         else:
-            veiculo = st.selectbox(
-                "Selecione o veículo da delegacia",
-                df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
-            )
+            agora = datetime.now(TZ)
 
-            agente_saida = st.text_input(
-                "Agente Responsável pela Liberação",
-                value=st.session_state['nome_usuario'],
-                key="agente_saida_delegacia"
-            )
-            obs = st.text_area("Observações", key="obs_saida_delegacia")
+            with st.form("form_saida_delegacia", clear_on_submit=True):
+                veiculo = st.selectbox(
+                    "Selecione o veículo da delegacia",
+                    df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
+                )
+                data_saida = st.date_input("Data da Saída", value=agora.date(), key="data_saida_del")
+                hora_saida = st.time_input("Hora da Saída", value=agora.time().replace(second=0, microsecond=0), key="hora_saida_del")
+                agente_saida = st.text_input(
+                    "Agente Responsável pela Liberação",
+                    value=st.session_state['nome_usuario'],
+                    key="agente_saida_delegacia"
+                )
+                obs = st.text_area("Observações", key="obs_saida_delegacia")
 
-            if st.button("Registrar Saída - Delegacia"):
-                if not agente_saida:
-                    st.warning("Informe o agente responsável pela liberação.")
-                else:
-                    id_veiculo = int(veiculo.split(" - ")[0])
+                if st.form_submit_button("Registrar Saída - Delegacia"):
+                    if not agente_saida:
+                        st.warning("Informe o agente responsável pela liberação.")
+                    else:
+                        id_veiculo = int(veiculo.split(" - ")[0])
 
-                    registrar_saida_delegacia(
-                        id_veiculo=id_veiculo,
-                        agente_saida=agente_saida.strip(),
-                        observacoes=obs.strip()
-                    )
+                        registrar_saida_delegacia(
+                            id_veiculo=id_veiculo,
+                            data_saida=data_saida,
+                            hora_saida=hora_saida,
+                            agente_saida=agente_saida.strip(),
+                            observacoes=obs.strip()
+                        )
 
-                    st.success("✅ Saída de veículo da delegacia registrada com sucesso.")
+                        st.success("✅ Saída de veículo da delegacia registrada com sucesso.")
+
 
 # =====================================================
 # 🚔 CONSULTA DE VEÍCULOS DA DELEGACIA
 # =====================================================
+
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
     st.subheader("Consulta de Veículos Vindos da Delegacia")
 
@@ -1286,7 +1354,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
         placa_del = c1.text_input("Placa", key="placa_del")
         marca_del = c2.text_input("Marca", key="marca_del")
         procedencia_del = c3.text_input("Procedência", key="procedencia_del")
-        status_del = c4.selectbox("Status", ["Todos", "DEPÓSITO", "LIBERADO"], key="status_del")
+        status_del = c4.selectbox("Status", ["Todos", STATUS_DEPOSITO, STATUS_LIBERADO], key="status_del")
 
         if placa_del and "placa" in df_del.columns:
             df_del = df_del[df_del["placa"].astype(str).str.contains(placa_del.upper(), na=False)]
@@ -1302,9 +1370,11 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
 
         st.dataframe(df_del, use_container_width=True)
 
+
 # =====================================================
 # 🔎 CONSULTA / INVENTÁRIO
 # =====================================================
+
 elif menu == "🔎 Consulta / Inventário":
     st.subheader("Consulta de Veículos")
 
@@ -1321,7 +1391,7 @@ elif menu == "🔎 Consulta / Inventário":
             placa = col1.text_input("Placa")
             marca = col2.text_input("Marca")
             data = col3.text_input("Data de Entrada (dd/mm/aaaa)")
-            status = col4.selectbox("Status", ["Todos", "DEPÓSITO", "LIBERADO"])
+            status = col4.selectbox("Status", ["Todos", STATUS_DEPOSITO, STATUS_LIBERADO])
 
             if placa and "placa" in df.columns:
                 df = df[df["placa"].astype(str).str.contains(placa.upper(), na=False)]
@@ -1361,9 +1431,11 @@ elif menu == "🔎 Consulta / Inventário":
 
             st.dataframe(df_ret, use_container_width=True)
 
+
 # =====================================================
 # 📜 LOG DE AUDITORIA - ADMIN E GESTOR
 # =====================================================
+
 elif menu == "📜 Log de Auditoria":
     st.subheader("Log de Auditoria do Sistema")
 
