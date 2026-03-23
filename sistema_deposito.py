@@ -9,8 +9,64 @@ import hashlib
 import time
 
 # ---------------- CONFIG STREAMLIT ----------------
-st.set_page_config(page_title="Controle de Veículos - Depósito GCM", layout="wide")
-st.title("🚓 Depósito Público – Controle de Veículos | GCM")
+st.set_page_config(
+    page_title="Controle de Veículos - Depósito GCM",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ---------------- CSS MODERNO ----------------
+st.markdown("""
+<style>
+    .main-title {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0.2rem;
+    }
+    .sub-title {
+        color: #6b7280;
+        margin-bottom: 1.2rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        padding: 18px;
+        border-radius: 18px;
+        color: white;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.08);
+        min-height: 110px;
+    }
+    .metric-card h4 {
+        margin: 0;
+        font-size: 0.95rem;
+        color: #cbd5e1;
+        font-weight: 600;
+    }
+    .metric-card h2 {
+        margin: 8px 0 0 0;
+        font-size: 2rem;
+        font-weight: 800;
+        color: #ffffff;
+    }
+    .section-box {
+        background: #ffffff;
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.05);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 8px 14px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Sistema de controle operacional, inventário e auditoria</div>', unsafe_allow_html=True)
 
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
@@ -151,7 +207,7 @@ def resetar_senha_agente(id_agente, nova_senha="1234"):
 # =====================================================
 
 if not st.session_state['logado']:
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 1.4, 1])
 
     with col2:
         st.subheader("🔐 Acesso ao Sistema")
@@ -165,7 +221,7 @@ if not st.session_state['logado']:
 
         senha_input = st.text_input("Senha", type="password")
 
-        if st.button("Entrar"):
+        if st.button("Entrar", use_container_width=True):
             if tipo == "Administrador":
                 sucesso, uid, p_acesso = login_admin(usuario_input, senha_input)
                 if sucesso:
@@ -240,7 +296,6 @@ def conectar_planilha():
         client = gspread.authorize(creds)
         planilha = client.open_by_key("1p4eVJjnubslCc5mmxj8aHApC6ZTPraD2mvKkD8gBOEI")
         aba = planilha.worksheet("veiculos")
-
         return aba
 
     except Exception as e:
@@ -293,19 +348,52 @@ def preparar_dataframe(df):
     df.columns = df.columns.str.strip().str.lower()
 
     colunas_texto = [
-        "placa", "marca", "modelo", "cor", "tipo", "motivo_apreensao",
-        "agente_entrada", "status", "data_saida", "hora_saida",
-        "agente_saida", "observacoes"
+        "placa", "marca", "modelo", "cor", "tipo",
+        "motivo_apreensao", "motivo da apreensão", "motivo",
+        "agente_entrada", "agente entrada",
+        "status",
+        "data_saida", "hora_saida", "agente_saida", "agente saída",
+        "observacoes", "observações"
     ]
 
-    for col in colunas_texto:
-        if col in df.columns:
+    for col in df.columns:
+        if col in colunas_texto:
             df[col] = df[col].astype(str)
 
     if "id" in df.columns:
         df["id"] = pd.to_numeric(df["id"], errors="coerce")
 
+    # Ajuste de aliases de colunas
+    mapa_alias = {}
+    if "motivo da apreensão" in df.columns and "motivo_apreensao" not in df.columns:
+        mapa_alias["motivo da apreensão"] = "motivo_apreensao"
+    if "agente entrada" in df.columns and "agente_entrada" not in df.columns:
+        mapa_alias["agente entrada"] = "agente_entrada"
+    if "agente saída" in df.columns and "agente_saida" not in df.columns:
+        mapa_alias["agente saída"] = "agente_saida"
+    if "observações" in df.columns and "observacoes" not in df.columns:
+        mapa_alias["observações"] = "observacoes"
+
+    if mapa_alias:
+        df = df.rename(columns=mapa_alias)
+
     return df
+
+def montar_coluna_mes(df, coluna_data, nome_coluna_mes):
+    if coluna_data in df.columns:
+        df[nome_coluna_mes] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y", errors="coerce")
+        df[nome_coluna_mes] = df[nome_coluna_mes].dt.to_period("M").astype(str)
+    else:
+        df[nome_coluna_mes] = None
+    return df
+
+def card_metrica(titulo, valor):
+    st.markdown(f"""
+        <div class="metric-card">
+            <h4>{titulo}</h4>
+            <h2>{valor}</h2>
+        </div>
+    """, unsafe_allow_html=True)
 
 # =====================================================
 # ---------------- MENU -------------------------------
@@ -318,6 +406,7 @@ if st.session_state['tipo_usuario'] == 'admin':
             "📊 Dashboard",
             "👤 Cadastrar Usuário",
             "📋 Gerenciar Usuários",
+            "🔐 Minha Conta",
             "🚗 Entrada de Veículo",
             "📤 Saída de Veículo",
             "🔎 Consulta / Inventário"
@@ -335,10 +424,10 @@ else:
     )
 
 # =====================================================
-# 📊 DASHBOARD - TODOS VISUALIZAM
+# 📊 DASHBOARD
 # =====================================================
 if menu == "📊 Dashboard":
-    st.subheader("Dashboard Operacional do Depósito")
+    st.subheader("Dashboard Operacional")
 
     df = carregar_dados()
     df = preparar_dataframe(df)
@@ -346,91 +435,165 @@ if menu == "📊 Dashboard":
     if df.empty:
         st.info("Ainda não há dados para exibir no dashboard.")
     else:
+        df = montar_coluna_mes(df, "data_entrada", "mes_entrada")
+        df = montar_coluna_mes(df, "data_saida", "mes_saida")
+
         total_registros = len(df)
+        total_deposito = len(df[df["status"].astype(str).str.upper() == "NO_DEPÓSITO"]) if "status" in df.columns else 0
+        total_liberados = len(df[df["status"].astype(str).str.upper() == "LIBERADO"]) if "status" in df.columns else 0
+        total_motos = len(df[df["tipo"].astype(str).str.upper() == "MOTOCICLETA"]) if "tipo" in df.columns else 0
+        total_automoveis = len(df[df["tipo"].astype(str).str.upper() == "AUTOMÓVEL"]) if "tipo" in df.columns else 0
+        total_caminhoes = len(df[df["tipo"].astype(str).str.upper() == "CAMINHÃO"]) if "tipo" in df.columns else 0
 
-        if "status" in df.columns:
-            total_deposito = len(df[df["status"].astype(str).str.upper() == "NO_DEPÓSITO"])
-            total_liberados = len(df[df["status"].astype(str).str.upper() == "LIBERADO"])
-        else:
-            total_deposito = 0
-            total_liberados = 0
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            card_metrica("Total de Registros", total_registros)
+        with c2:
+            card_metrica("No Depósito", total_deposito)
+        with c3:
+            card_metrica("Liberados", total_liberados)
+        with c4:
+            card_metrica("Motocicletas", total_motos)
+        with c5:
+            card_metrica("Automóveis", total_automoveis)
 
-        if "tipo" in df.columns:
-            total_motos = len(df[df["tipo"].astype(str).str.upper() == "MOTOCICLETA"])
-            total_automoveis = len(df[df["tipo"].astype(str).str.upper() == "AUTOMÓVEL"])
-            total_caminhoes = len(df[df["tipo"].astype(str).str.upper() == "CAMINHÃO"])
-        else:
-            total_motos = 0
-            total_automoveis = 0
-            total_caminhoes = 0
+        st.markdown("")
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total de Registros", total_registros)
-        c2.metric("No Depósito", total_deposito)
-        c3.metric("Liberados", total_liberados)
-        c4.metric("Motocicletas", total_motos)
-
-        c5, c6 = st.columns(2)
-        c5.metric("Automóveis", total_automoveis)
-        c6.metric("Caminhões", total_caminhoes)
+        c6, c7 = st.columns(2)
+        with c6:
+            card_metrica("Caminhões", total_caminhoes)
+        with c7:
+            saldo_operacional = total_deposito - total_liberados
+            card_metrica("Saldo Operacional", saldo_operacional)
 
         st.markdown("---")
 
-        col_g1, col_g2 = st.columns(2)
+        tab1, tab2, tab3 = st.tabs(["Visão Geral", "Movimentação Mensal", "Produtividade"])
 
-        with col_g1:
-            if "status" in df.columns:
+        with tab1:
+            g1, g2 = st.columns(2)
+
+            with g1:
                 st.markdown("**Veículos por Status**")
-                status_count = df["status"].astype(str).str.upper().value_counts()
-                st.bar_chart(status_count)
+                if "status" in df.columns:
+                    status_count = df["status"].astype(str).str.upper().value_counts()
+                    st.bar_chart(status_count, use_container_width=True)
 
-        with col_g2:
-            if "tipo" in df.columns:
+            with g2:
                 st.markdown("**Veículos por Tipo**")
-                tipo_count = df["tipo"].astype(str).str.upper().value_counts()
-                st.bar_chart(tipo_count)
+                if "tipo" in df.columns:
+                    tipo_count = df["tipo"].astype(str).str.upper().value_counts()
+                    st.bar_chart(tipo_count, use_container_width=True)
 
-        st.markdown("---")
+            g3, g4 = st.columns(2)
 
-        col_g3, col_g4 = st.columns(2)
-
-        with col_g3:
-            if "marca" in df.columns:
+            with g3:
                 st.markdown("**Top 10 Marcas**")
-                marca_count = df["marca"].astype(str).str.upper().value_counts().head(10)
-                st.bar_chart(marca_count)
+                if "marca" in df.columns:
+                    marca_count = df["marca"].astype(str).str.upper().value_counts().head(10)
+                    st.bar_chart(marca_count, use_container_width=True)
 
-        with col_g4:
-            if "agente_entrada" in df.columns:
+            with g4:
                 st.markdown("**Entradas por Agente**")
-                agente_count = df["agente_entrada"].astype(str).str.upper().value_counts().head(10)
-                st.bar_chart(agente_count)
+                if "agente_entrada" in df.columns:
+                    agente_count = df["agente_entrada"].astype(str).str.upper().value_counts().head(10)
+                    st.bar_chart(agente_count, use_container_width=True)
 
-        st.markdown("---")
+        with tab2:
+            m1, m2 = st.columns(2)
 
-        if "data_entrada" in df.columns:
-            st.markdown("**Entradas por Data**")
-            df_datas = df.copy()
-            df_datas["data_entrada_dt"] = pd.to_datetime(df_datas["data_entrada"], format="%d/%m/%Y", errors="coerce")
-            entradas_por_data = (
-                df_datas.dropna(subset=["data_entrada_dt"])
-                .groupby("data_entrada_dt")
-                .size()
-                .sort_index()
-            )
-            if not entradas_por_data.empty:
-                st.line_chart(entradas_por_data)
+            with m1:
+                st.markdown("**Quantidade de Entradas por Mês**")
+                entradas_mes = (
+                    df.dropna(subset=["mes_entrada"])
+                      .groupby("mes_entrada")
+                      .size()
+                      .sort_index()
+                )
+                if not entradas_mes.empty:
+                    st.line_chart(entradas_mes, use_container_width=True)
+                    st.dataframe(
+                        entradas_mes.reset_index().rename(columns={"mes_entrada": "Mês", 0: "Entradas"}),
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Sem dados de entrada por mês.")
+
+            with m2:
+                st.markdown("**Quantidade de Saídas por Mês**")
+                saidas_mes = (
+                    df.dropna(subset=["mes_saida"])
+                      .groupby("mes_saida")
+                      .size()
+                      .sort_index()
+                )
+                if not saidas_mes.empty:
+                    st.line_chart(saidas_mes, use_container_width=True)
+                    st.dataframe(
+                        saidas_mes.reset_index().rename(columns={"mes_saida": "Mês", 0: "Saídas"}),
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Sem dados de saída por mês.")
+
+            st.markdown("**Comparativo de Entradas x Saídas por Mês**")
+            entradas_df = entradas_mes.reset_index(name="Entradas") if not entradas_mes.empty else pd.DataFrame(columns=["mes_entrada", "Entradas"])
+            saidas_df = saidas_mes.reset_index(name="Saídas") if not saidas_mes.empty else pd.DataFrame(columns=["mes_saida", "Saídas"])
+
+            if not entradas_df.empty:
+                entradas_df = entradas_df.rename(columns={"mes_entrada": "Mês"})
+            if not saidas_df.empty:
+                saidas_df = saidas_df.rename(columns={"mes_saida": "Mês"})
+
+            comparativo = pd.merge(entradas_df, saidas_df, on="Mês", how="outer").fillna(0)
+
+            if not comparativo.empty:
+                comparativo = comparativo.sort_values("Mês")
+                comparativo_chart = comparativo.set_index("Mês")[["Entradas", "Saídas"]]
+                st.bar_chart(comparativo_chart, use_container_width=True)
+                st.dataframe(comparativo, use_container_width=True)
             else:
-                st.info("Sem datas válidas para o gráfico de entradas.")
+                st.info("Sem dados suficientes para o comparativo mensal.")
+
+        with tab3:
+            p1, p2 = st.columns(2)
+
+            with p1:
+                st.markdown("**Saídas por Agente**")
+                if "agente_saida" in df.columns:
+                    saida_agente = (
+                        df[df["agente_saida"].astype(str).str.strip() != ""]
+                        ["agente_saida"]
+                        .astype(str)
+                        .str.upper()
+                        .value_counts()
+                        .head(10)
+                    )
+                    if not saida_agente.empty:
+                        st.bar_chart(saida_agente, use_container_width=True)
+                    else:
+                        st.info("Sem registros de saída por agente.")
+
+            with p2:
+                st.markdown("**Entradas por Data**")
+                if "data_entrada" in df.columns:
+                    df_datas = df.copy()
+                    df_datas["data_entrada_dt"] = pd.to_datetime(df_datas["data_entrada"], format="%d/%m/%Y", errors="coerce")
+                    entradas_por_data = (
+                        df_datas.dropna(subset=["data_entrada_dt"])
+                        .groupby("data_entrada_dt")
+                        .size()
+                        .sort_index()
+                    )
+                    if not entradas_por_data.empty:
+                        st.line_chart(entradas_por_data, use_container_width=True)
+                    else:
+                        st.info("Sem datas válidas para o gráfico.")
 
 # =====================================================
 # 👤 CADASTRO DE USUÁRIO - SOMENTE ADMIN
 # =====================================================
 elif menu == "👤 Cadastrar Usuário":
-    if st.session_state['tipo_usuario'] != 'admin':
-        st.error("Acesso restrito ao administrador.")
-        st.stop()
-
     st.subheader("Cadastro de Usuário")
 
     with st.form("form_cadastro_usuario"):
@@ -451,10 +614,6 @@ elif menu == "👤 Cadastrar Usuário":
 # 📋 GERENCIAR USUÁRIOS - SOMENTE ADMIN
 # =====================================================
 elif menu == "📋 Gerenciar Usuários":
-    if st.session_state['tipo_usuario'] != 'admin':
-        st.error("Acesso restrito ao administrador.")
-        st.stop()
-
     st.subheader("Gerenciamento de Usuários")
 
     df_agentes = listar_agentes()
@@ -486,6 +645,32 @@ elif menu == "📋 Gerenciar Usuários":
                 st.success("Usuário excluído com sucesso.")
                 time.sleep(1)
                 st.rerun()
+
+# =====================================================
+# 🔐 MINHA CONTA - SOMENTE ADMIN
+# =====================================================
+elif menu == "🔐 Minha Conta":
+    st.subheader("Minha Conta")
+
+    st.info("Área para alteração manual da senha do administrador.")
+
+    with st.form("form_troca_senha_admin_manual"):
+        senha_atual = st.text_input("Senha Atual", type="password")
+        nova_senha = st.text_input("Nova Senha", type="password")
+        confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
+
+        if st.form_submit_button("Alterar Senha"):
+            sucesso, uid, _ = login_admin(st.session_state['nome_usuario'], senha_atual)
+
+            if not sucesso:
+                st.error("Senha atual incorreta.")
+            elif nova_senha != confirmar_nova:
+                st.error("A nova senha e a confirmação não coincidem.")
+            elif len(nova_senha) < 4:
+                st.error("A nova senha deve ter pelo menos 4 caracteres.")
+            else:
+                alterar_senha("admin", st.session_state['usuario_id'], nova_senha)
+                st.success("Senha alterada com sucesso.")
 
 # =====================================================
 # 🚗 ENTRADA DE VEÍCULO
@@ -538,7 +723,7 @@ elif menu == "🚗 Entrada de Veículo":
                 st.success("✅ Veículo registrado com sucesso!")
 
 # =====================================================
-# 📤 SAÍDA DE VEÍCULO - ADMIN E AGENTE
+# 📤 SAÍDA DE VEÍCULO
 # =====================================================
 elif menu == "📤 Saída de Veículo":
     st.subheader("Registro de Saída de Veículo")
