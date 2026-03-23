@@ -48,6 +48,10 @@ st.markdown("""
         font-weight: 800;
         color: #ffffff;
     }
+    div[data-testid="stCaptionContainer"] p {
+        font-size: 0.85rem;
+        color: #475569;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,6 +61,7 @@ st.markdown('<div class="sub-title">Sistema de controle operacional, inventário
 TZ = ZoneInfo("America/Sao_Paulo")
 STATUS_DEPOSITO = "DEPÓSITO"
 STATUS_LIBERADO = "LIBERADO"
+
 
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
@@ -270,6 +275,7 @@ def resetar_senha_gestor(id_gestor, nova_senha="1234"):
     conn.commit()
     conn.close()
 
+
 # =====================================================
 # ---------------- TELA DE LOGIN ----------------------
 # =====================================================
@@ -330,6 +336,7 @@ if not st.session_state['logado']:
 
     st.stop()
 
+
 # =====================================================
 # ----------- TROCA DE SENHA NO PRIMEIRO ACESSO -------
 # =====================================================
@@ -355,6 +362,7 @@ if st.session_state['primeiro_acesso']:
                 st.error("As senhas não coincidem ou são muito curtas.")
     st.stop()
 
+
 # =====================================================
 # ---------------- SIDEBAR LOGADO ---------------------
 # =====================================================
@@ -364,6 +372,7 @@ st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
 
 if st.sidebar.button("Sair / Logout"):
     logout()
+
 
 # =====================================================
 # ------------- CONEXÃO GOOGLE SHEETS -----------------
@@ -451,6 +460,7 @@ retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
 delegacia_sheet = conectar_aba_delegacia()
 
+
 # =====================================================
 # ---------------- FUNÇÕES AUXILIARES -----------------
 # =====================================================
@@ -519,17 +529,69 @@ def registrar_log(usuario, acao, detalhes=""):
 
 def validar_hora_manual(hora_str):
     try:
-        hora_obj = datetime.strptime(hora_str.strip(), "%H:%M")
+        hora_str = str(hora_str).strip().replace(".", "").replace("-", "").replace(" ", "")
+
+        if ":" not in hora_str:
+            if len(hora_str) == 4:
+                hora_str = f"{hora_str[:2]}:{hora_str[2:]}"
+            elif len(hora_str) == 3:
+                hora_str = f"0{hora_str[:1]}:{hora_str[1:]}"
+            else:
+                return False, None
+
+        hora_obj = datetime.strptime(hora_str, "%H:%M")
         return True, hora_obj.strftime("%H:%M")
     except:
         return False, None
 
 def validar_data_manual(data_str):
     try:
-        data_obj = datetime.strptime(data_str.strip(), "%d/%m/%Y")
+        data_str = str(data_str).strip().replace("-", "/").replace(".", "/").replace("\\", "/")
+
+        if "/" not in data_str:
+            somente_num = "".join(ch for ch in data_str if ch.isdigit())
+
+            if len(somente_num) == 8:
+                data_str = f"{somente_num[:2]}/{somente_num[2:4]}/{somente_num[4:]}"
+            elif len(somente_num) == 6:
+                dia = somente_num[:2]
+                mes = somente_num[2:4]
+                ano = f"20{somente_num[4:]}"
+                data_str = f"{dia}/{mes}/{ano}"
+            else:
+                return False, None
+        else:
+            partes = data_str.split("/")
+            if len(partes) != 3:
+                return False, None
+
+            dia, mes, ano = partes
+
+            if len(dia) == 1:
+                dia = f"0{dia}"
+            if len(mes) == 1:
+                mes = f"0{mes}"
+            if len(ano) == 2:
+                ano = f"20{ano}"
+
+            data_str = f"{dia}/{mes}/{ano}"
+
+        data_obj = datetime.strptime(data_str, "%d/%m/%Y")
         return True, data_obj
     except:
         return False, None
+
+def normalizar_hora_texto(hora_str):
+    ok, hora_formatada = validar_hora_manual(hora_str)
+    if ok:
+        return hora_formatada
+    return ""
+
+def normalizar_data_texto(data_str):
+    ok, data_formatada = validar_data_manual(data_str)
+    if ok:
+        return data_formatada.strftime("%d/%m/%Y")
+    return ""
 
 def preparar_dataframe(df):
     if df.empty:
@@ -579,6 +641,16 @@ def card_metrica(titulo, valor):
             <h2>{valor}</h2>
         </div>
     """, unsafe_allow_html=True)
+
+def mostrar_preview_data_hora(data_txt, hora_txt):
+    data_preview = normalizar_data_texto(data_txt)
+    hora_preview = normalizar_hora_texto(hora_txt)
+
+    col_prev1, col_prev2 = st.columns(2)
+    with col_prev1:
+        st.caption(f"Data reconhecida: {data_preview if data_preview else 'inválida'}")
+    with col_prev2:
+        st.caption(f"Hora reconhecida: {hora_preview if hora_preview else 'inválida'}")
 
 def registrar_retirada_pertence(
     id_veiculo,
@@ -724,6 +796,7 @@ def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, obse
 
     st.cache_data.clear()
 
+
 # =====================================================
 # ---------------- MENU -------------------------------
 # =====================================================
@@ -771,6 +844,7 @@ if menu == "🚔 Delegacia":
         ]
     )
 
+
 # =====================================================
 # 📊 DASHBOARD
 # =====================================================
@@ -807,7 +881,7 @@ if menu == "📊 Dashboard":
             card_metrica("Automóveis", total_automoveis)
 
         st.markdown("")
-        st.columns(1)[0].markdown(f"""
+        st.markdown(f"""
             <div class="metric-card">
                 <h4>Caminhões</h4>
                 <h2>{total_caminhoes}</h2>
@@ -933,6 +1007,7 @@ if menu == "📊 Dashboard":
                     else:
                         st.info("Sem datas válidas para o gráfico.")
 
+
 # =====================================================
 # 👤 CADASTRO DE USUÁRIO - ADMIN E GESTOR
 # =====================================================
@@ -972,6 +1047,7 @@ elif menu == "👤 Cadastrar Usuário":
                     st.success(f"{tipo_novo_usuario} cadastrado com sucesso. No primeiro acesso deverá trocar a senha.")
                 else:
                     st.error("Usuário/Matrícula já cadastrado.")
+
 
 # =====================================================
 # 📋 GERENCIAR USUÁRIOS - ADMIN E GESTOR
@@ -1044,6 +1120,7 @@ elif menu == "📋 Gerenciar Usuários":
                     time.sleep(1)
                     st.rerun()
 
+
 # =====================================================
 # 🔐 MINHA CONTA - ADMIN E GESTOR
 # =====================================================
@@ -1091,6 +1168,7 @@ elif menu == "🔐 Minha Conta":
                     alterar_senha("gestor", st.session_state['usuario_id'], nova_senha)
                     st.success("Senha alterada com sucesso.")
 
+
 # =====================================================
 # 🚗 ENTRADA DE VEÍCULO
 # =====================================================
@@ -1108,8 +1186,22 @@ elif menu == "🚗 Entrada de Veículo":
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
         motivo = st.text_area("Motivo da Apreensão")
-        data_entrada = st.text_input("Data da Entrada (DD/MM/AAAA)", value=agora.strftime("%d/%m/%Y"))
-        hora_entrada = st.text_input("Hora da Entrada (HH:MM)", value=agora.strftime("%H:%M"))
+
+        data_entrada = st.text_input(
+            "Data da Entrada",
+            value=agora.strftime("%d/%m/%Y"),
+            placeholder="Ex: 23/03/2026 ou 23032026",
+            help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+        )
+        hora_entrada = st.text_input(
+            "Hora da Entrada",
+            value=agora.strftime("%H:%M"),
+            placeholder="Ex: 14:00 ou 1400",
+            help="Aceita: 14:00, 1400, 930"
+        )
+
+        mostrar_preview_data_hora(data_entrada, hora_entrada)
+
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada"):
@@ -1119,9 +1211,9 @@ elif menu == "🚗 Entrada de Veículo":
             if not numero_grv or not placa or not marca or not modelo or not cor or not motivo or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             elif not data_ok:
-                st.error("Data inválida. Use o formato DD/MM/AAAA, por exemplo 23/03/2026.")
+                st.error("Data inválida. Use DD/MM/AAAA ou 23032026.")
             elif not hora_ok:
-                st.error("Hora inválida. Use o formato HH:MM, por exemplo 14:35.")
+                st.error("Hora inválida. Use HH:MM ou 1400.")
             else:
                 registrar_entrada_patio(
                     numero_grv=numero_grv.strip(),
@@ -1136,6 +1228,7 @@ elif menu == "🚗 Entrada de Veículo":
                     agente=agente.strip()
                 )
                 st.success("✅ Veículo registrado com sucesso!")
+
 
 # =====================================================
 # 📤 SAÍDA DE VEÍCULO
@@ -1162,8 +1255,24 @@ elif menu == "📤 Saída de Veículo":
                     "Selecione o veículo",
                     df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str)
                 )
-                data_saida = st.text_input("Data da Saída (DD/MM/AAAA)", value=agora.strftime("%d/%m/%Y"), key="data_saida_patio")
-                hora_saida = st.text_input("Hora da Saída (HH:MM)", value=agora.strftime("%H:%M"), key="hora_saida_patio")
+
+                data_saida = st.text_input(
+                    "Data da Saída",
+                    value=agora.strftime("%d/%m/%Y"),
+                    key="data_saida_patio",
+                    placeholder="Ex: 23/03/2026 ou 23032026",
+                    help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+                )
+                hora_saida = st.text_input(
+                    "Hora da Saída",
+                    value=agora.strftime("%H:%M"),
+                    key="hora_saida_patio",
+                    placeholder="Ex: 14:00 ou 1400",
+                    help="Aceita: 14:00, 1400, 930"
+                )
+
+                mostrar_preview_data_hora(data_saida, hora_saida)
+
                 agente_saida = st.text_input(
                     "Agente Responsável pela Liberação",
                     value=st.session_state['nome_usuario']
@@ -1177,9 +1286,9 @@ elif menu == "📤 Saída de Veículo":
                     if not agente_saida:
                         st.warning("Informe o agente responsável pela liberação.")
                     elif not data_ok:
-                        st.error("Data inválida. Use o formato DD/MM/AAAA.")
+                        st.error("Data inválida. Use DD/MM/AAAA ou 23032026.")
                     elif not hora_ok:
-                        st.error("Hora inválida. Use o formato HH:MM, por exemplo 16:20.")
+                        st.error("Hora inválida. Use HH:MM ou 1400.")
                     else:
                         vid = int(veiculo.split(" - ")[0])
                         registrar_saida_patio(
@@ -1190,6 +1299,7 @@ elif menu == "📤 Saída de Veículo":
                             observacoes=obs.strip()
                         )
                         st.success("🚗 Veículo liberado com sucesso!")
+
 
 # =====================================================
 # 🧾 RETIRADA DE PERTENCES
@@ -1221,8 +1331,20 @@ elif menu == "🧾 Retirada de Pertences":
                     df_ativos["modelo"].astype(str)
                 )
 
-                data_retirada = st.text_input("Data da Retirada (DD/MM/AAAA)", value=agora_sp.strftime("%d/%m/%Y"))
-                hora_retirada = st.text_input("Hora da Retirada (HH:MM)", value=agora_sp.strftime("%H:%M"))
+                data_retirada = st.text_input(
+                    "Data da Retirada",
+                    value=agora_sp.strftime("%d/%m/%Y"),
+                    placeholder="Ex: 23/03/2026 ou 23032026",
+                    help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+                )
+                hora_retirada = st.text_input(
+                    "Hora da Retirada",
+                    value=agora_sp.strftime("%H:%M"),
+                    placeholder="Ex: 14:00 ou 1400",
+                    help="Aceita: 14:00, 1400, 930"
+                )
+
+                mostrar_preview_data_hora(data_retirada, hora_retirada)
 
                 nome_retirante = st.text_input("Nome Completo da Pessoa que Retirou o Pertence")
                 documento_retirante = st.text_input("Documento da Pessoa que Retirou")
@@ -1237,9 +1359,9 @@ elif menu == "🧾 Retirada de Pertences":
                     if not nome_retirante or not documento_retirante or not itens_retirados or not agente_responsavel:
                         st.warning("Preencha todos os campos obrigatórios.")
                     elif not data_ok:
-                        st.error("Data inválida. Use o formato DD/MM/AAAA.")
+                        st.error("Data inválida. Use DD/MM/AAAA ou 23032026.")
                     elif not hora_ok:
-                        st.error("Hora inválida. Use o formato HH:MM.")
+                        st.error("Hora inválida. Use HH:MM ou 1400.")
                     else:
                         id_veiculo = int(veiculo.split(" - ")[0])
                         placa_veiculo = veiculo.split(" - ")[2]
@@ -1256,7 +1378,8 @@ elif menu == "🧾 Retirada de Pertences":
                             agente_responsavel=agente_responsavel.strip()
                         )
 
-                        st.success("✅ Retirada de pertences registrada com sucesso.")
+                        st.success("✅ Retirada de pertences registrada com sucesso!")
+
 
 # =====================================================
 # 🚔 ENTRADA DE VEÍCULO DA DELEGACIA
@@ -1275,8 +1398,24 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
         procedencia = st.text_input("Procedência / Delegacia de Origem")
-        data_entrada = st.text_input("Data da Entrada (DD/MM/AAAA)", value=agora.strftime("%d/%m/%Y"), key="data_entrada_del")
-        hora_entrada = st.text_input("Hora da Entrada (HH:MM)", value=agora.strftime("%H:%M"), key="hora_entrada_del")
+
+        data_entrada = st.text_input(
+            "Data da Entrada",
+            value=agora.strftime("%d/%m/%Y"),
+            key="data_entrada_del",
+            placeholder="Ex: 23/03/2026 ou 23032026",
+            help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+        )
+        hora_entrada = st.text_input(
+            "Hora da Entrada",
+            value=agora.strftime("%H:%M"),
+            key="hora_entrada_del",
+            placeholder="Ex: 14:00 ou 1400",
+            help="Aceita: 14:00, 1400, 930"
+        )
+
+        mostrar_preview_data_hora(data_entrada, hora_entrada)
+
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
         if st.form_submit_button("Registrar Entrada - Delegacia"):
@@ -1286,9 +1425,9 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
             if not numero_grv or not placa or not marca or not modelo or not cor or not procedencia or not agente:
                 st.warning("Preencha todos os campos obrigatórios.")
             elif not data_ok:
-                st.error("Data inválida. Use o formato DD/MM/AAAA.")
+                st.error("Data inválida. Use DD/MM/AAAA ou 23032026.")
             elif not hora_ok:
-                st.error("Hora inválida. Use o formato HH:MM.")
+                st.error("Hora inválida. Use HH:MM ou 1400.")
             else:
                 registrar_entrada_delegacia(
                     numero_grv=numero_grv.strip(),
@@ -1302,7 +1441,8 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
                     hora_entrada=hora_formatada,
                     agente_entrada=agente.strip()
                 )
-                st.success("✅ Veículo da delegacia registrado com sucesso.")
+                st.success("✅ Veículo da delegacia registrado com sucesso!")
+
 
 # =====================================================
 # 🚔 SAÍDA DE VEÍCULO DA DELEGACIA
@@ -1329,8 +1469,24 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
                     "Selecione o veículo da delegacia",
                     df_ativos["id"].astype(str) + " - GRV " + df_ativos["numero_grv"].astype(str) + " - " + df_ativos["placa"].astype(str) + " - " + df_ativos["procedencia"].astype(str)
                 )
-                data_saida = st.text_input("Data da Saída (DD/MM/AAAA)", value=agora.strftime("%d/%m/%Y"), key="data_saida_del")
-                hora_saida = st.text_input("Hora da Saída (HH:MM)", value=agora.strftime("%H:%M"), key="hora_saida_del")
+
+                data_saida = st.text_input(
+                    "Data da Saída",
+                    value=agora.strftime("%d/%m/%Y"),
+                    key="data_saida_del",
+                    placeholder="Ex: 23/03/2026 ou 23032026",
+                    help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+                )
+                hora_saida = st.text_input(
+                    "Hora da Saída",
+                    value=agora.strftime("%H:%M"),
+                    key="hora_saida_del",
+                    placeholder="Ex: 14:00 ou 1400",
+                    help="Aceita: 14:00, 1400, 930"
+                )
+
+                mostrar_preview_data_hora(data_saida, hora_saida)
+
                 agente_saida = st.text_input(
                     "Agente Responsável pela Liberação",
                     value=st.session_state['nome_usuario'],
@@ -1345,9 +1501,9 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
                     if not agente_saida:
                         st.warning("Informe o agente responsável pela liberação.")
                     elif not data_ok:
-                        st.error("Data inválida. Use o formato DD/MM/AAAA.")
+                        st.error("Data inválida. Use DD/MM/AAAA ou 23032026.")
                     elif not hora_ok:
-                        st.error("Hora inválida. Use o formato HH:MM.")
+                        st.error("Hora inválida. Use HH:MM ou 1400.")
                     else:
                         id_veiculo = int(veiculo.split(" - ")[0])
 
@@ -1359,7 +1515,8 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
                             observacoes=obs.strip()
                         )
 
-                        st.success("✅ Saída de veículo da delegacia registrada com sucesso.")
+                        st.success("✅ Saída de veículo da delegacia registrada com sucesso!")
+
 
 # =====================================================
 # 🚔 CONSULTA DE VEÍCULOS DA DELEGACIA
@@ -1393,6 +1550,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
             df_del = df_del[df_del["status"].astype(str).str.upper() == status_del]
 
         st.dataframe(df_del, use_container_width=True)
+
 
 # =====================================================
 # 🔎 CONSULTA / INVENTÁRIO
@@ -1453,6 +1611,7 @@ elif menu == "🔎 Consulta / Inventário":
                 df_ret = df_ret[df_ret["documento_retirante"].astype(str).str.contains(filtro_doc, case=False, na=False)]
 
             st.dataframe(df_ret, use_container_width=True)
+
 
 # =====================================================
 # 📜 LOG DE AUDITORIA - ADMIN E GESTOR
