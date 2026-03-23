@@ -102,6 +102,16 @@ def init_db():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS gestores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario TEXT UNIQUE,
+            nome TEXT,
+            senha TEXT,
+            primeiro_acesso INTEGER DEFAULT 1
+        )
+    ''')
+
     try:
         senha_hash = make_hashes('admin123')
         c.execute(
@@ -127,6 +137,18 @@ def login_admin(usuario, senha):
     if user and check_hashes(senha, user[1]):
         return True, user[0], user[2]
     return False, None, None
+
+def login_gestor(usuario, senha):
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT id, nome, senha, primeiro_acesso FROM gestores WHERE usuario = ?",
+        (usuario,)
+    ).fetchone()
+    conn.close()
+
+    if user and check_hashes(senha, user[2]):
+        return True, user[0], user[1], user[3]
+    return False, None, None, None
 
 def login_agente(matricula, senha):
     conn = get_connection()
@@ -155,10 +177,32 @@ def cadastrar_agente_admin(matricula, nome, senha_inicial):
     finally:
         conn.close()
 
+def cadastrar_gestor_admin(usuario, nome, senha_inicial):
+    conn = get_connection()
+    try:
+        senha_cripto = make_hashes(senha_inicial)
+        conn.execute(
+            "INSERT INTO gestores (usuario, nome, senha, primeiro_acesso) VALUES (?, ?, ?, ?)",
+            (usuario, nome, senha_cripto, 1)
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
 def alterar_senha(tipo_usuario, id_usuario, nova_senha):
     conn = get_connection()
     nova_senha_hash = make_hashes(nova_senha)
-    tabela = "administradores" if tipo_usuario == 'admin' else "agentes"
+
+    if tipo_usuario == 'admin':
+        tabela = "administradores"
+    elif tipo_usuario == 'gestor':
+        tabela = "gestores"
+    else:
+        tabela = "agentes"
+
     conn.execute(
         f"UPDATE {tabela} SET senha = ?, primeiro_acesso = 0 WHERE id = ?",
         (nova_senha_hash, id_usuario)
@@ -166,9 +210,27 @@ def alterar_senha(tipo_usuario, id_usuario, nova_senha):
     conn.commit()
     conn.close()
 
+def validar_senha_gestor_por_id(id_usuario, senha):
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT senha FROM gestores WHERE id = ?",
+        (id_usuario,)
+    ).fetchone()
+    conn.close()
+
+    if user and check_hashes(senha, user[0]):
+        return True
+    return False
+
 def listar_agentes():
     conn = get_connection()
     df = pd.read_sql("SELECT id, matricula, nome, primeiro_acesso FROM agentes ORDER BY nome", conn)
+    conn.close()
+    return df
+
+def listar_gestores():
+    conn = get_connection()
+    df = pd.read_sql("SELECT id, usuario, nome, primeiro_acesso FROM gestores ORDER BY nome", conn)
     conn.close()
     return df
 
@@ -178,12 +240,28 @@ def excluir_agente(id_agente):
     conn.commit()
     conn.close()
 
+def excluir_gestor(id_gestor):
+    conn = get_connection()
+    conn.execute("DELETE FROM gestores WHERE id = ?", (id_gestor,))
+    conn.commit()
+    conn.close()
+
 def resetar_senha_agente(id_agente, nova_senha="1234"):
     conn = get_connection()
     senha_hash = make_hashes(nova_senha)
     conn.execute(
         "UPDATE agentes SET senha = ?, primeiro_acesso = 1 WHERE id = ?",
         (senha_hash, id_agente)
+    )
+    conn.commit()
+    conn.close()
+
+def resetar_senha_gestor(id_gestor, nova_senha="1234"):
+    conn = get_connection()
+    senha_hash = make_hashes(nova_senha)
+    conn.execute(
+        "UPDATE gestores SET senha = ?, primeiro_acesso = 1 WHERE id = ?",
+        (senha_hash, id_gestor)
     )
     conn.commit()
     conn.close()
@@ -198,10 +276,12 @@ if not st.session_state['logado']:
     with col2:
         st.subheader("🔐 Acesso ao Sistema")
 
-        tipo = st.radio("Entrar como:", ["Agente", "Administrador"], horizontal=True)
+        tipo = st.radio("Entrar como:", ["Agente", "Gestor", "Administrador"], horizontal=True)
 
         if tipo == "Administrador":
             usuario_input = st.text_input("Usuário do Admin")
+        elif tipo == "Gestor":
+            usuario_input = st.text_input("Usuário do Gestor")
         else:
             usuario_input = st.text_input("Matrícula do Agente")
 
@@ -219,6 +299,19 @@ if not st.session_state['logado']:
                     st.rerun()
                 else:
                     st.error("Usuário ou senha inválidos.")
+
+            elif tipo == "Gestor":
+                sucesso, uid, nome, p_acesso = login_gestor(usuario_input, senha_input)
+                if sucesso:
+                    st.session_state['logado'] = True
+                    st.session_state['tipo_usuario'] = 'gestor'
+                    st.session_state['usuario_id'] = uid
+                    st.session_state['nome_usuario'] = nome
+                    st.session_state['primeiro_acesso'] = bool(p_acesso)
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha inválidos.")
+
             else:
                 sucesso, uid, nome, p_acesso = login_agente(usuario_input, senha_input)
                 if sucesso:
@@ -580,7 +673,7 @@ def card_metrica(titulo, valor):
 # ---------------- MENU -------------------------------
 # =====================================================
 
-if st.session_state['tipo_usuario'] == 'admin':
+if st.session_state['tipo_usuario'] in ['admin', 'gestor']:
     menu = st.sidebar.radio(
         "Menu Principal",
         [
@@ -662,7 +755,7 @@ if menu == "📊 Dashboard":
         c6, c7 = st.columns(2)
         with c6:
             card_metrica("Caminhões", total_caminhoes)
-        
+
         st.markdown("---")
 
         tab1, tab2, tab3 = st.tabs(["Visão Geral", "Movimentação Mensal", "Produtividade"])
@@ -784,85 +877,159 @@ if menu == "📊 Dashboard":
                         st.info("Sem datas válidas para o gráfico.")
 
 # =====================================================
-# 👤 CADASTRO DE USUÁRIO - SOMENTE ADMIN
+# 👤 CADASTRO DE USUÁRIO - ADMIN E GESTOR
 # =====================================================
 elif menu == "👤 Cadastrar Usuário":
     st.subheader("Cadastro de Usuário")
 
+    tipo_novo_usuario = st.selectbox("Tipo de Usuário", ["Agente", "Gestor"])
+
     with st.form("form_cadastro_usuario"):
-        matricula = st.text_input("Matrícula")
+        if tipo_novo_usuario == "Agente":
+            identificador = st.text_input("Matrícula")
+        else:
+            identificador = st.text_input("Usuário do Gestor")
+
         nome = st.text_input("Nome Completo")
         senha_inicial = st.text_input("Senha Inicial", value="1234", type="password")
 
         if st.form_submit_button("Cadastrar Usuário"):
-            if not matricula or not nome or not senha_inicial:
+            if not identificador or not nome or not senha_inicial:
                 st.warning("Preencha todos os campos.")
             else:
-                if cadastrar_agente_admin(matricula.strip(), nome.strip(), senha_inicial.strip()):
-                    st.success("Usuário cadastrado com sucesso. No primeiro acesso ele deverá trocar a senha.")
+                if tipo_novo_usuario == "Agente":
+                    ok = cadastrar_agente_admin(
+                        identificador.strip(),
+                        nome.strip(),
+                        senha_inicial.strip()
+                    )
                 else:
-                    st.error("Matrícula já cadastrada.")
+                    ok = cadastrar_gestor_admin(
+                        identificador.strip(),
+                        nome.strip(),
+                        senha_inicial.strip()
+                    )
+
+                if ok:
+                    st.success(f"{tipo_novo_usuario} cadastrado com sucesso. No primeiro acesso deverá trocar a senha.")
+                else:
+                    st.error("Usuário/Matrícula já cadastrado.")
 
 # =====================================================
-# 📋 GERENCIAR USUÁRIOS - SOMENTE ADMIN
+# 📋 GERENCIAR USUÁRIOS - ADMIN E GESTOR
 # =====================================================
 elif menu == "📋 Gerenciar Usuários":
     st.subheader("Gerenciamento de Usuários")
 
-    df_agentes = listar_agentes()
+    aba1, aba2 = st.tabs(["Agentes", "Gestores"])
 
-    if df_agentes.empty:
-        st.info("Nenhum usuário cadastrado.")
-    else:
-        st.dataframe(df_agentes, use_container_width=True)
+    with aba1:
+        df_agentes = listar_agentes()
 
-        opcoes = df_agentes["matricula"].astype(str) + " - " + df_agentes["nome"]
-        selecionado = st.selectbox("Selecione um usuário", opcoes)
+        if df_agentes.empty:
+            st.info("Nenhum agente cadastrado.")
+        else:
+            st.dataframe(df_agentes, use_container_width=True)
 
-        matricula_sel = selecionado.split(" - ")[0]
-        agente_sel = df_agentes[df_agentes["matricula"].astype(str) == matricula_sel].iloc[0]
-        id_agente_sel = int(agente_sel["id"])
+            opcoes = df_agentes["matricula"].astype(str) + " - " + df_agentes["nome"]
+            selecionado = st.selectbox("Selecione um agente", opcoes, key="sel_agente")
 
-        col1, col2 = st.columns(2)
+            matricula_sel = selecionado.split(" - ")[0]
+            agente_sel = df_agentes[df_agentes["matricula"].astype(str) == matricula_sel].iloc[0]
+            id_agente_sel = int(agente_sel["id"])
 
-        with col1:
-            if st.button("Resetar Senha para 1234"):
-                resetar_senha_agente(id_agente_sel, "1234")
-                st.success("Senha resetada com sucesso. O usuário deverá trocar no próximo login.")
-                time.sleep(1)
-                st.rerun()
+            col1, col2 = st.columns(2)
 
-        with col2:
-            if st.button("Excluir Usuário", type="primary"):
-                excluir_agente(id_agente_sel)
-                st.success("Usuário excluído com sucesso.")
-                time.sleep(1)
-                st.rerun()
+            with col1:
+                if st.button("Resetar Senha do Agente para 1234", key="reset_agente"):
+                    resetar_senha_agente(id_agente_sel, "1234")
+                    st.success("Senha resetada com sucesso.")
+                    time.sleep(1)
+                    st.rerun()
+
+            with col2:
+                if st.button("Excluir Agente", type="primary", key="exc_agente"):
+                    excluir_agente(id_agente_sel)
+                    st.success("Agente excluído com sucesso.")
+                    time.sleep(1)
+                    st.rerun()
+
+    with aba2:
+        df_gestores = listar_gestores()
+
+        if df_gestores.empty:
+            st.info("Nenhum gestor cadastrado.")
+        else:
+            st.dataframe(df_gestores, use_container_width=True)
+
+            opcoes = df_gestores["usuario"].astype(str) + " - " + df_gestores["nome"]
+            selecionado = st.selectbox("Selecione um gestor", opcoes, key="sel_gestor")
+
+            usuario_sel = selecionado.split(" - ")[0]
+            gestor_sel = df_gestores[df_gestores["usuario"].astype(str) == usuario_sel].iloc[0]
+            id_gestor_sel = int(gestor_sel["id"])
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("Resetar Senha do Gestor para 1234", key="reset_gestor"):
+                    resetar_senha_gestor(id_gestor_sel, "1234")
+                    st.success("Senha resetada com sucesso.")
+                    time.sleep(1)
+                    st.rerun()
+
+            with col2:
+                if st.button("Excluir Gestor", type="primary", key="exc_gestor"):
+                    excluir_gestor(id_gestor_sel)
+                    st.success("Gestor excluído com sucesso.")
+                    time.sleep(1)
+                    st.rerun()
 
 # =====================================================
-# 🔐 MINHA CONTA - SOMENTE ADMIN
+# 🔐 MINHA CONTA - ADMIN E GESTOR
 # =====================================================
 elif menu == "🔐 Minha Conta":
     st.subheader("Minha Conta")
-    st.info("Área para alteração manual da senha do administrador.")
 
-    with st.form("form_troca_senha_admin_manual"):
-        senha_atual = st.text_input("Senha Atual", type="password")
-        nova_senha = st.text_input("Nova Senha", type="password")
-        confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
+    if st.session_state['tipo_usuario'] == 'admin':
+        st.info("Área para alteração manual da senha do administrador.")
 
-        if st.form_submit_button("Alterar Senha"):
-            sucesso, uid, _ = login_admin(st.session_state['nome_usuario'], senha_atual)
+        with st.form("form_troca_senha_admin_manual"):
+            senha_atual = st.text_input("Senha Atual", type="password")
+            nova_senha = st.text_input("Nova Senha", type="password")
+            confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
 
-            if not sucesso:
-                st.error("Senha atual incorreta.")
-            elif nova_senha != confirmar_nova:
-                st.error("A nova senha e a confirmação não coincidem.")
-            elif len(nova_senha) < 4:
-                st.error("A nova senha deve ter pelo menos 4 caracteres.")
-            else:
-                alterar_senha("admin", st.session_state['usuario_id'], nova_senha)
-                st.success("Senha alterada com sucesso.")
+            if st.form_submit_button("Alterar Senha"):
+                sucesso, uid, _ = login_admin(st.session_state['nome_usuario'], senha_atual)
+
+                if not sucesso:
+                    st.error("Senha atual incorreta.")
+                elif nova_senha != confirmar_nova:
+                    st.error("A nova senha e a confirmação não coincidem.")
+                elif len(nova_senha) < 4:
+                    st.error("A nova senha deve ter pelo menos 4 caracteres.")
+                else:
+                    alterar_senha("admin", st.session_state['usuario_id'], nova_senha)
+                    st.success("Senha alterada com sucesso.")
+
+    elif st.session_state['tipo_usuario'] == 'gestor':
+        st.info("Área para alteração da senha do gestor.")
+
+        with st.form("form_troca_senha_gestor_manual"):
+            senha_atual = st.text_input("Senha Atual", type="password")
+            nova_senha = st.text_input("Nova Senha", type="password")
+            confirmar_nova = st.text_input("Confirmar Nova Senha", type="password")
+
+            if st.form_submit_button("Alterar Senha"):
+                if not validar_senha_gestor_por_id(st.session_state['usuario_id'], senha_atual):
+                    st.error("Senha atual incorreta.")
+                elif nova_senha != confirmar_nova:
+                    st.error("A nova senha e a confirmação não coincidem.")
+                elif len(nova_senha) < 4:
+                    st.error("A nova senha deve ter pelo menos 4 caracteres.")
+                else:
+                    alterar_senha("gestor", st.session_state['usuario_id'], nova_senha)
+                    st.success("Senha alterada com sucesso.")
 
 # =====================================================
 # 🚗 ENTRADA DE VEÍCULO
@@ -1195,7 +1362,7 @@ elif menu == "🔎 Consulta / Inventário":
             st.dataframe(df_ret, use_container_width=True)
 
 # =====================================================
-# 📜 LOG DE AUDITORIA - SOMENTE ADMIN
+# 📜 LOG DE AUDITORIA - ADMIN E GESTOR
 # =====================================================
 elif menu == "📜 Log de Auditoria":
     st.subheader("Log de Auditoria do Sistema")
