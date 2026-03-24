@@ -1516,7 +1516,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
 
     with st.form("entrada_delegacia", clear_on_submit=True):
         numero_grv = st.text_input("Número da GRV")
-        placa = st.text_input("Placa")
+        placa = st.text_input("Placa/Chassi/Nr do motor")
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
