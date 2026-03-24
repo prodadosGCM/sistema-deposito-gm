@@ -7,6 +7,11 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import hashlib
 import time
+from io import BytesIO
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import simpleSplit
 
 # ---------------- CONFIG STREAMLIT ----------------
 st.set_page_config(
@@ -56,12 +61,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia e auditoria</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia, relatórios e auditoria</div>', unsafe_allow_html=True)
 
 TZ = ZoneInfo("America/Sao_Paulo")
 STATUS_DEPOSITO = "DEPÓSITO"
 STATUS_LIBERADO = "LIBERADO"
-
 
 # =====================================================
 # ---------------- FUNÇÕES DE LOGIN -------------------
@@ -275,7 +279,6 @@ def resetar_senha_gestor(id_gestor, nova_senha="1234"):
     conn.commit()
     conn.close()
 
-
 # =====================================================
 # ---------------- TELA DE LOGIN ----------------------
 # =====================================================
@@ -336,7 +339,6 @@ if not st.session_state['logado']:
 
     st.stop()
 
-
 # =====================================================
 # ----------- TROCA DE SENHA NO PRIMEIRO ACESSO -------
 # =====================================================
@@ -362,7 +364,6 @@ if st.session_state['primeiro_acesso']:
                 st.error("As senhas não coincidem ou são muito curtas.")
     st.stop()
 
-
 # =====================================================
 # ---------------- SIDEBAR LOGADO ---------------------
 # =====================================================
@@ -372,7 +373,6 @@ st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
 
 if st.sidebar.button("Sair / Logout"):
     logout()
-
 
 # =====================================================
 # ------------- CONEXÃO GOOGLE SHEETS -----------------
@@ -421,7 +421,7 @@ def conectar_aba_log():
     try:
         return sheet.spreadsheet.worksheet("log_auditoria")
     except Exception:
-        nova_aba = sheet.spreadsheet.add_worksheet(title="log_auditoria", rows=2000, cols=5)
+        nova_aba = sheet.spreadsheet.add_worksheet(title="log_auditoria", rows=5000, cols=5)
         nova_aba.append_row([
             "data",
             "hora",
@@ -459,7 +459,6 @@ def conectar_aba_delegacia():
 retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
 delegacia_sheet = conectar_aba_delegacia()
-
 
 # =====================================================
 # ---------------- FUNÇÕES AUXILIARES -----------------
@@ -526,6 +525,13 @@ def registrar_log(usuario, acao, detalhes=""):
         str(acao).upper(),
         str(detalhes).upper()
     ])
+
+def registrar_log_impressao(usuario, tipo_relatorio, referencia=""):
+    registrar_log(
+        usuario=usuario,
+        acao="IMPRESSAO_RELATORIO",
+        detalhes=f"{tipo_relatorio} | {referencia}"
+    )
 
 def validar_hora_manual(hora_str):
     try:
@@ -651,6 +657,131 @@ def mostrar_preview_data_hora(data_txt, hora_txt):
         st.caption(f"Data reconhecida: {data_preview if data_preview else 'inválida'}")
     with col_prev2:
         st.caption(f"Hora reconhecida: {hora_preview if hora_preview else 'inválida'}")
+
+def obter_nome_arquivo_seguro(texto_base):
+    texto_base = str(texto_base).strip().replace(" ", "_").replace("/", "-").replace("\\", "-")
+    texto_base = texto_base.replace(":", "-").replace("*", "").replace("?", "").replace('"', "")
+    return texto_base
+
+def montar_relatorio_veiculo(df_veiculo, df_retiradas=None, origem="DEPÓSITO"):
+    if df_veiculo.empty:
+        return "Nenhum dado encontrado para este veículo."
+
+    row = df_veiculo.iloc[0]
+
+    linhas = []
+    linhas.append("RELATÓRIO COMPLETO DO VEÍCULO")
+    linhas.append("=" * 80)
+    linhas.append(f"ORIGEM: {origem}")
+    linhas.append(f"ID: {row.get('id', '')}")
+    linhas.append(f"NÚMERO GRV: {row.get('numero_grv', '')}")
+    linhas.append(f"PLACA: {row.get('placa', '')}")
+    linhas.append(f"MARCA: {row.get('marca', '')}")
+    linhas.append(f"MODELO: {row.get('modelo', '')}")
+    linhas.append(f"COR: {row.get('cor', '')}")
+    linhas.append(f"TIPO: {row.get('tipo', '')}")
+
+    if origem == "DEPÓSITO":
+        linhas.append(f"MOTIVO APREENSÃO: {row.get('motivo_apreensao', '')}")
+    else:
+        linhas.append(f"PROCEDÊNCIA: {row.get('procedencia', '')}")
+
+    linhas.append(f"DATA ENTRADA: {row.get('data_entrada', '')}")
+    linhas.append(f"HORA ENTRADA: {row.get('hora_entrada', '')}")
+    linhas.append(f"AGENTE ENTRADA: {row.get('agente_entrada', '')}")
+    linhas.append(f"STATUS: {row.get('status', '')}")
+    linhas.append(f"DATA SAÍDA: {row.get('data_saida', '')}")
+    linhas.append(f"HORA SAÍDA: {row.get('hora_saida', '')}")
+    linhas.append(f"AGENTE SAÍDA: {row.get('agente_saida', '')}")
+    linhas.append(f"OBSERVAÇÕES: {row.get('observacoes', '')}")
+    linhas.append("")
+
+    if df_retiradas is not None and not df_retiradas.empty:
+        linhas.append("HISTÓRICO DE RETIRADA DE PERTENCES")
+        linhas.append("-" * 80)
+        for _, ret in df_retiradas.iterrows():
+            linhas.append(f"DATA: {ret.get('data_retirada', '')} | HORA: {ret.get('hora_retirada', '')}")
+            linhas.append(f"RETIRANTE: {ret.get('nome_retirante', '')}")
+            linhas.append(f"DOCUMENTO: {ret.get('documento_retirante', '')}")
+            linhas.append(f"ITENS: {ret.get('itens_retirados', '')}")
+            linhas.append(f"OBSERVAÇÃO: {ret.get('observacao_retirada', '')}")
+            linhas.append(f"AGENTE RESPONSÁVEL: {ret.get('agente_responsavel', '')}")
+            linhas.append("-" * 80)
+    else:
+        linhas.append("SEM REGISTROS DE RETIRADA DE PERTENCES.")
+
+    return "\n".join(linhas)
+
+def montar_relatorio_logs(df_logs):
+    linhas = []
+    linhas.append("RELATÓRIO COMPLETO DE LOGS DO SISTEMA")
+    linhas.append("=" * 100)
+
+    if df_logs.empty:
+        linhas.append("Nenhum log encontrado.")
+        return "\n".join(linhas)
+
+    for _, row in df_logs.iterrows():
+        linhas.append(
+            f"DATA: {row.get('data', '')} | HORA: {row.get('hora', '')} | "
+            f"USUÁRIO: {row.get('usuario', '')} | AÇÃO: {row.get('acao', '')}"
+        )
+        linhas.append(f"DETALHES: {row.get('detalhes', '')}")
+        linhas.append("-" * 100)
+
+    return "\n".join(linhas)
+
+def gerar_pdf_texto(titulo, conteudo, usuario_emissor):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    largura, altura = A4
+
+    y = altura - 40
+    margem_esq = 40
+    largura_texto = largura - 80
+
+    def nova_pagina():
+        nonlocal y
+        pdf.showPage()
+        y = altura - 40
+        pdf.setFont("Helvetica", 10)
+
+    pdf.setTitle(titulo)
+
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(margem_esq, y, "GUARDA CIVIL MUNICIPAL")
+    y -= 20
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(margem_esq, y, titulo)
+    y -= 20
+
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(
+        margem_esq,
+        y,
+        f"Emitido em: {datetime.now(TZ).strftime('%d/%m/%Y %H:%M:%S')} | Usuário: {usuario_emissor}"
+    )
+    y -= 25
+
+    pdf.setFont("Helvetica", 10)
+
+    for paragrafo in conteudo.split("\n"):
+        linhas = simpleSplit(paragrafo, "Helvetica", 10, largura_texto)
+        if not linhas:
+            y -= 14
+            if y < 50:
+                nova_pagina()
+            continue
+
+        for linha in linhas:
+            if y < 50:
+                nova_pagina()
+            pdf.drawString(margem_esq, y, linha)
+            y -= 14
+
+    pdf.save()
+    buffer.seek(0)
+    return buffer.getvalue()
 
 def registrar_retirada_pertence(
     id_veiculo,
@@ -796,7 +927,6 @@ def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, obse
 
     st.cache_data.clear()
 
-
 # =====================================================
 # ---------------- MENU -------------------------------
 # =====================================================
@@ -813,6 +943,7 @@ if st.session_state['tipo_usuario'] in ['admin', 'gestor']:
             "📤 Saída de Veículo",
             "🧾 Retirada de Pertences",
             "🚔 Delegacia",
+            "🖨️ Relatórios",
             "🔎 Consulta / Inventário",
             "📜 Log de Auditoria"
         ]
@@ -826,6 +957,7 @@ else:
             "📤 Saída de Veículo",
             "🧾 Retirada de Pertences",
             "🚔 Delegacia",
+            "🖨️ Relatórios",
             "🔎 Consulta / Inventário"
         ]
     )
@@ -843,7 +975,6 @@ if menu == "🚔 Delegacia":
             "Consulta de Veículos"
         ]
     )
-
 
 # =====================================================
 # 📊 DASHBOARD
@@ -1007,9 +1138,8 @@ if menu == "📊 Dashboard":
                     else:
                         st.info("Sem datas válidas para o gráfico.")
 
-
 # =====================================================
-# 👤 CADASTRO DE USUÁRIO - ADMIN E GESTOR
+# 👤 CADASTRO DE USUÁRIO
 # =====================================================
 
 elif menu == "👤 Cadastrar Usuário":
@@ -1048,9 +1178,8 @@ elif menu == "👤 Cadastrar Usuário":
                 else:
                     st.error("Usuário/Matrícula já cadastrado.")
 
-
 # =====================================================
-# 📋 GERENCIAR USUÁRIOS - ADMIN E GESTOR
+# 📋 GERENCIAR USUÁRIOS
 # =====================================================
 
 elif menu == "📋 Gerenciar Usuários":
@@ -1120,9 +1249,8 @@ elif menu == "📋 Gerenciar Usuários":
                     time.sleep(1)
                     st.rerun()
 
-
 # =====================================================
-# 🔐 MINHA CONTA - ADMIN E GESTOR
+# 🔐 MINHA CONTA
 # =====================================================
 
 elif menu == "🔐 Minha Conta":
@@ -1167,7 +1295,6 @@ elif menu == "🔐 Minha Conta":
                 else:
                     alterar_senha("gestor", st.session_state['usuario_id'], nova_senha)
                     st.success("Senha alterada com sucesso.")
-
 
 # =====================================================
 # 🚗 ENTRADA DE VEÍCULO
@@ -1228,7 +1355,6 @@ elif menu == "🚗 Entrada de Veículo":
                     agente=agente.strip()
                 )
                 st.success("✅ Veículo registrado com sucesso!")
-
 
 # =====================================================
 # 📤 SAÍDA DE VEÍCULO
@@ -1299,7 +1425,6 @@ elif menu == "📤 Saída de Veículo":
                             observacoes=obs.strip()
                         )
                         st.success("🚗 Veículo liberado com sucesso!")
-
 
 # =====================================================
 # 🧾 RETIRADA DE PERTENCES
@@ -1380,9 +1505,8 @@ elif menu == "🧾 Retirada de Pertences":
 
                         st.success("✅ Retirada de pertences registrada com sucesso!")
 
-
 # =====================================================
-# 🚔 ENTRADA DE VEÍCULO DA DELEGACIA
+# 🚔 DELEGACIA
 # =====================================================
 
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
@@ -1442,11 +1566,6 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
                     agente_entrada=agente.strip()
                 )
                 st.success("✅ Veículo da delegacia registrado com sucesso!")
-
-
-# =====================================================
-# 🚔 SAÍDA DE VEÍCULO DA DELEGACIA
-# =====================================================
 
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
     st.subheader("Registro de Saída de Veículo - Delegacia")
@@ -1517,11 +1636,6 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
 
                         st.success("✅ Saída de veículo da delegacia registrada com sucesso!")
 
-
-# =====================================================
-# 🚔 CONSULTA DE VEÍCULOS DA DELEGACIA
-# =====================================================
-
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
     st.subheader("Consulta de Veículos Vindos da Delegacia")
 
@@ -1551,6 +1665,133 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
 
         st.dataframe(df_del, use_container_width=True)
 
+# =====================================================
+# 🖨️ RELATÓRIOS
+# =====================================================
+
+elif menu == "🖨️ Relatórios":
+    st.subheader("Relatórios de Veículos")
+
+    tab1, tab2 = st.tabs(["Relatório de Veículo", "Relatório Geral de Logs"])
+
+    with tab1:
+        tipo_origem = st.radio("Origem do Veículo", ["DEPÓSITO", "DELEGACIA"], horizontal=True)
+
+        if tipo_origem == "DEPÓSITO":
+            df_base = carregar_dados()
+        else:
+            df_base = carregar_dados_delegacia()
+
+        df_base = preparar_dataframe(df_base)
+        df_ret = carregar_retiradas()
+
+        if df_base.empty:
+            st.info("Nenhum veículo encontrado para gerar relatório.")
+        else:
+            filtro_tipo = st.radio("Localizar por", ["Placa", "GRV", "ID"], horizontal=True)
+
+            valor_busca = ""
+            df_filtrado = pd.DataFrame()
+
+            if filtro_tipo == "Placa":
+                valor_busca = st.text_input("Informe a placa")
+                if valor_busca:
+                    df_filtrado = df_base[df_base["placa"].astype(str).str.upper() == valor_busca.strip().upper()]
+
+            elif filtro_tipo == "GRV":
+                valor_busca = st.text_input("Informe o número da GRV")
+                if valor_busca:
+                    df_filtrado = df_base[df_base["numero_grv"].astype(str).str.upper() == valor_busca.strip().upper()]
+
+            else:
+                valor_busca = st.text_input("Informe o ID")
+                if valor_busca:
+                    df_filtrado = df_base[df_base["id"].astype(str) == valor_busca.strip()]
+
+            if not df_filtrado.empty:
+                veiculo_sel = df_filtrado.iloc[0]
+                id_veiculo = veiculo_sel.get("id", "")
+                placa_veiculo = veiculo_sel.get("placa", "")
+                grv_veiculo = veiculo_sel.get("numero_grv", "")
+
+                if not df_ret.empty and "id_veiculo" in df_ret.columns:
+                    df_ret_filtrado = df_ret[df_ret["id_veiculo"].astype(str) == str(id_veiculo)]
+                else:
+                    df_ret_filtrado = pd.DataFrame()
+
+                relatorio_txt = montar_relatorio_veiculo(
+                    df_veiculo=df_filtrado,
+                    df_retiradas=df_ret_filtrado,
+                    origem=tipo_origem
+                )
+
+                st.text_area("Pré-visualização do Relatório", relatorio_txt, height=500)
+
+                pdf_bytes = gerar_pdf_texto(
+                    titulo=f"RELATÓRIO DO VEÍCULO - {tipo_origem}",
+                    conteudo=relatorio_txt,
+                    usuario_emissor=st.session_state['nome_usuario']
+                )
+
+                nome_arquivo = f"relatorio_{tipo_origem.lower()}_{obter_nome_arquivo_seguro(placa_veiculo or grv_veiculo or id_veiculo)}.pdf"
+
+                if st.download_button(
+                    label="📥 Baixar Relatório do Veículo em PDF",
+                    data=pdf_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/pdf"
+                ):
+                    registrar_log_impressao(
+                        usuario=st.session_state['nome_usuario'],
+                        tipo_relatorio=f"RELATORIO_VEICULO_{tipo_origem}",
+                        referencia=f"ID {id_veiculo} | GRV {grv_veiculo} | PLACA {placa_veiculo}"
+                    )
+            elif valor_busca:
+                st.warning("Nenhum veículo encontrado com esse critério.")
+
+    with tab2:
+        if st.session_state['tipo_usuario'] not in ['admin', 'gestor']:
+            st.warning("Apenas admin e gestor podem acessar o relatório geral de logs.")
+        else:
+            df_logs = carregar_logs()
+
+            c1, c2, c3 = st.columns(3)
+            filtro_usuario = c1.text_input("Filtrar por usuário", key="rel_filtro_usuario")
+            filtro_acao = c2.text_input("Filtrar por ação", key="rel_filtro_acao")
+            filtro_data = c3.text_input("Filtrar por data (dd/mm/aaaa)", key="rel_filtro_data")
+
+            if not df_logs.empty:
+                if filtro_usuario and "usuario" in df_logs.columns:
+                    df_logs = df_logs[df_logs["usuario"].astype(str).str.contains(filtro_usuario, case=False, na=False)]
+
+                if filtro_acao and "acao" in df_logs.columns:
+                    df_logs = df_logs[df_logs["acao"].astype(str).str.contains(filtro_acao, case=False, na=False)]
+
+                if filtro_data and "data" in df_logs.columns:
+                    df_logs = df_logs[df_logs["data"].astype(str) == filtro_data]
+
+            relatorio_logs_txt = montar_relatorio_logs(df_logs)
+            st.text_area("Pré-visualização do Relatório de Logs", relatorio_logs_txt, height=500)
+
+            pdf_logs = gerar_pdf_texto(
+                titulo="RELATÓRIO COMPLETO DE LOGS DO SISTEMA",
+                conteudo=relatorio_logs_txt,
+                usuario_emissor=st.session_state['nome_usuario']
+            )
+
+            nome_arquivo_logs = f"relatorio_logs_{datetime.now(TZ).strftime('%Y%m%d_%H%M%S')}.pdf"
+
+            if st.download_button(
+                label="📥 Baixar Relatório Completo de Logs em PDF",
+                data=pdf_logs,
+                file_name=nome_arquivo_logs,
+                mime="application/pdf"
+            ):
+                registrar_log_impressao(
+                    usuario=st.session_state['nome_usuario'],
+                    tipo_relatorio="RELATORIO_GERAL_LOGS",
+                    referencia="LOG COMPLETO DO SISTEMA"
+                )
 
 # =====================================================
 # 🔎 CONSULTA / INVENTÁRIO
@@ -1612,9 +1853,8 @@ elif menu == "🔎 Consulta / Inventário":
 
             st.dataframe(df_ret, use_container_width=True)
 
-
 # =====================================================
-# 📜 LOG DE AUDITORIA - ADMIN E GESTOR
+# 📜 LOG DE AUDITORIA
 # =====================================================
 
 elif menu == "📜 Log de Auditoria":
