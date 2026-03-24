@@ -61,7 +61,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia, relatórios e auditoria. Criado em 24/03/2026</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia, relatórios e auditoria. Criado em 24/03/2026.</div>', unsafe_allow_html=True)
 
 TZ = ZoneInfo("America/Sao_Paulo")
 STATUS_DEPOSITO = "DEPÓSITO"
