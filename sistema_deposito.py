@@ -1626,6 +1626,7 @@ elif menu == "🧾 Retirada de Pertences":
             st.info("Não há veículos atualmente no depósito para retirada de pertences.")
         else:
             with st.form("form_retirada_pertences", clear_on_submit=True):
+                # Seleção do veículo
                 veiculo = st.selectbox(
                     "Selecione o veículo",
                     df_ativos["id"].astype(str) + " - GRV " +
@@ -1635,27 +1636,36 @@ elif menu == "🧾 Retirada de Pertences":
                     df_ativos["modelo"].astype(str)
                 )
 
-                data_entrada = st.text_input(
-                    "Data da Entrada",
+                # Campos digitados manualmente, sem preenchimento automático
+                data_retirada = st.text_input(
+                    "Data da Retirada",
                     value="",
-                    placeholder="Digite a data"
+                    placeholder=""
                 )
 
-                hora_entrada = st.text_input(
-                    "Hora da Entrada",
+                hora_retirada = st.text_input(
+                    "Hora da Retirada",
                     value="",
-                    placeholder="Digite a hora"
+                    placeholder=""
                 )
 
+                # Pré-visualização do que foi digitado
                 mostrar_preview_data_hora(data_retirada, hora_retirada)
 
+                # Dados da retirada
                 nome_retirante = st.text_input("Nome Completo da Pessoa que Retirou o Pertence")
                 documento_retirante = st.text_input("Documento da Pessoa que Retirou")
                 itens_retirados = st.text_area("Itens Retirados do Veículo")
                 observacao_retirada = st.text_area("Observação da Retirada")
-                agente_responsavel = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
+                agente_responsavel = st.text_input(
+                    "Agente Responsável",
+                    value=st.session_state['nome_usuario']
+                )
 
-                if st.form_submit_button("Registrar Retirada de Pertences"):
+                # Botão obrigatório do formulário
+                submit_retirada = st.form_submit_button("Registrar Retirada de Pertences")
+
+                if submit_retirada:
                     data_ok, data_formatada = validar_data_manual(data_retirada)
                     hora_ok, hora_formatada = validar_hora_manual(hora_retirada)
 
