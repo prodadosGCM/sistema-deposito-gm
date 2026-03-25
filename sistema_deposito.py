@@ -1635,17 +1635,16 @@ elif menu == "🧾 Retirada de Pertences":
                     df_ativos["modelo"].astype(str)
                 )
 
-                data_retirada = st.text_input(
-                    "Data da Retirada",
+                data_entrada = st.text_input(
+                    "Data da Entrada",
                     value="",
-                    placeholder="Ex: 23/03/2026 ou 23032026",
-                    help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
+                    placeholder="Digite a data"
                 )
-                hora_retirada = st.text_input(
-                    "Hora da Retirada",
+
+                hora_entrada = st.text_input(
+                    "Hora da Entrada",
                     value="",
-                    placeholder="Ex: 14:00 ou 1400",
-                    help="Aceita: 14:00, 1400, 930"
+                    placeholder="Digite a hora"
                 )
 
                 mostrar_preview_data_hora(data_retirada, hora_retirada)
