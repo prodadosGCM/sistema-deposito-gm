@@ -13,14 +13,22 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import simpleSplit
 
-# ---------------- CONFIG STREAMLIT ----------------
+
+# =====================================================
+# CONFIGURAÇÃO INICIAL DO STREAMLIT
+# Define título da aba, layout e estado inicial da sidebar
+# =====================================================
 st.set_page_config(
     page_title="Controle de Veículos - Depósito GCM",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------------- CSS MODERNO ----------------
+
+# =====================================================
+# CSS PERSONALIZADO DA INTERFACE
+# Blocos visuais, títulos e cartões de métricas
+# =====================================================
 st.markdown("""
 <style>
     .main-title {
@@ -60,23 +68,42 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia, relatórios e auditoria. Criado em 24/03/2026.</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-title">🚓 Depósito Público – Controle de Veículos | GCM</div>',
+    unsafe_allow_html=True
+)
+st.markdown(
+    '<div class="sub-title">Sistema de controle operacional, inventário, retirada de pertences, delegacia, relatórios e auditoria. Criado em 24/03/2026.</div>',
+    unsafe_allow_html=True
+)
 
+
+# =====================================================
+# CONSTANTES GERAIS DO SISTEMA
+# =====================================================
 TZ = ZoneInfo("America/Sao_Paulo")
 STATUS_DEPOSITO = "DEPÓSITO"
 STATUS_LIBERADO = "LIBERADO"
 
+
 # =====================================================
-# ---------------- FUNÇÕES DE LOGIN -------------------
+# FUNÇÕES DE SEGURANÇA / LOGIN
 # =====================================================
 
+# Gera hash SHA-256 da senha
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
+
+# Compara senha digitada com hash armazenado
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
+
+# =====================================================
+# CONTROLE DE SESSÃO
+# Cria chaves iniciais caso ainda não existam
+# =====================================================
 if 'logado' not in st.session_state:
     st.session_state['logado'] = False
     st.session_state['usuario_id'] = None
@@ -84,14 +111,29 @@ if 'logado' not in st.session_state:
     st.session_state['primeiro_acesso'] = False
     st.session_state['nome_usuario'] = ""
 
+
+# =====================================================
+# FUNÇÃO DE LOGOUT
+# Limpa toda a sessão e recarrega a aplicação
+# =====================================================
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
 
+
+# =====================================================
+# CONEXÃO COM O BANCO SQLITE
+# Banco responsável pelos usuários do sistema
+# =====================================================
 def get_connection():
     return sqlite3.connect('usuarios_deposito.db', check_same_thread=False)
 
+
+# =====================================================
+# INICIALIZAÇÃO DAS TABELAS DE USUÁRIOS
+# Cria tabelas de agentes, administradores e gestores
+# =====================================================
 def init_db():
     conn = get_connection()
     c = conn.cursor()
@@ -125,6 +167,7 @@ def init_db():
         )
     ''')
 
+    # Cria admin padrão caso ainda não exista
     try:
         senha_hash = make_hashes('admin123')
         c.execute(
@@ -137,7 +180,14 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+# Inicializa o banco ao abrir a aplicação
 init_db()
+
+
+# =====================================================
+# FUNÇÕES DE LOGIN POR PERFIL
+# =====================================================
 
 def login_admin(usuario, senha):
     conn = get_connection()
@@ -151,6 +201,7 @@ def login_admin(usuario, senha):
         return True, user[0], user[2]
     return False, None, None
 
+
 def login_gestor(usuario, senha):
     conn = get_connection()
     user = conn.execute(
@@ -163,6 +214,7 @@ def login_gestor(usuario, senha):
         return True, user[0], user[1], user[3]
     return False, None, None, None
 
+
 def login_agente(matricula, senha):
     conn = get_connection()
     user = conn.execute(
@@ -174,6 +226,11 @@ def login_agente(matricula, senha):
     if user and check_hashes(senha, user[2]):
         return True, user[0], user[1], user[3]
     return False, None, None, None
+
+
+# =====================================================
+# FUNÇÕES DE CADASTRO DE USUÁRIOS
+# =====================================================
 
 def cadastrar_agente_admin(matricula, nome, senha_inicial):
     conn = get_connection()
@@ -190,6 +247,7 @@ def cadastrar_agente_admin(matricula, nome, senha_inicial):
     finally:
         conn.close()
 
+
 def cadastrar_gestor_admin(usuario, nome, senha_inicial):
     conn = get_connection()
     try:
@@ -205,6 +263,11 @@ def cadastrar_gestor_admin(usuario, nome, senha_inicial):
     finally:
         conn.close()
 
+
+# =====================================================
+# ALTERAÇÃO DE SENHA
+# Marca primeiro acesso como concluído
+# =====================================================
 def alterar_senha(tipo_usuario, id_usuario, nova_senha):
     conn = get_connection()
     nova_senha_hash = make_hashes(nova_senha)
@@ -223,6 +286,10 @@ def alterar_senha(tipo_usuario, id_usuario, nova_senha):
     conn.commit()
     conn.close()
 
+
+# =====================================================
+# VALIDAÇÃO DE SENHA DE GESTOR PELO ID
+# =====================================================
 def validar_senha_gestor_por_id(id_usuario, senha):
     conn = get_connection()
     user = conn.execute(
@@ -235,11 +302,16 @@ def validar_senha_gestor_por_id(id_usuario, senha):
         return True
     return False
 
+
+# =====================================================
+# LISTAGEM DE USUÁRIOS
+# =====================================================
 def listar_agentes():
     conn = get_connection()
     df = pd.read_sql("SELECT id, matricula, nome, primeiro_acesso FROM agentes ORDER BY nome", conn)
     conn.close()
     return df
+
 
 def listar_gestores():
     conn = get_connection()
@@ -247,11 +319,16 @@ def listar_gestores():
     conn.close()
     return df
 
+
+# =====================================================
+# EXCLUSÃO DE USUÁRIOS
+# =====================================================
 def excluir_agente(id_agente):
     conn = get_connection()
     conn.execute("DELETE FROM agentes WHERE id = ?", (id_agente,))
     conn.commit()
     conn.close()
+
 
 def excluir_gestor(id_gestor):
     conn = get_connection()
@@ -259,6 +336,11 @@ def excluir_gestor(id_gestor):
     conn.commit()
     conn.close()
 
+
+# =====================================================
+# RESET DE SENHA
+# Restaura senha padrão e força troca no primeiro acesso
+# =====================================================
 def resetar_senha_agente(id_agente, nova_senha="1234"):
     conn = get_connection()
     senha_hash = make_hashes(nova_senha)
@@ -268,6 +350,7 @@ def resetar_senha_agente(id_agente, nova_senha="1234"):
     )
     conn.commit()
     conn.close()
+
 
 def resetar_senha_gestor(id_gestor, nova_senha="1234"):
     conn = get_connection()
@@ -279,10 +362,10 @@ def resetar_senha_gestor(id_gestor, nova_senha="1234"):
     conn.commit()
     conn.close()
 
-# =====================================================
-# ---------------- TELA DE LOGIN ----------------------
-# =====================================================
 
+# =====================================================
+# TELA DE LOGIN
+# =====================================================
 if not st.session_state['logado']:
     col1, col2, col3 = st.columns([1, 1.4, 1])
 
@@ -339,10 +422,10 @@ if not st.session_state['logado']:
 
     st.stop()
 
-# =====================================================
-# ----------- TROCA DE SENHA NO PRIMEIRO ACESSO -------
-# =====================================================
 
+# =====================================================
+# TROCA DE SENHA NO PRIMEIRO ACESSO
+# =====================================================
 if st.session_state['primeiro_acesso']:
     st.warning("⚠️ Por segurança, altere sua senha inicial.")
     with st.form("form_troca_senha", clear_on_submit=True):
@@ -364,20 +447,21 @@ if st.session_state['primeiro_acesso']:
                 st.error("As senhas não coincidem ou são muito curtas.")
     st.stop()
 
-# =====================================================
-# ---------------- SIDEBAR LOGADO ---------------------
-# =====================================================
 
+# =====================================================
+# SIDEBAR DO USUÁRIO LOGADO
+# =====================================================
 st.sidebar.success(f"Logado como: {st.session_state['nome_usuario']}")
 st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
 
 if st.sidebar.button("Sair / Logout"):
     logout()
 
-# =====================================================
-# ------------- CONEXÃO GOOGLE SHEETS -----------------
-# =====================================================
 
+# =====================================================
+# CONEXÃO COM GOOGLE SHEETS
+# A planilha é a base operacional dos veículos, retiradas e logs
+# =====================================================
 def conectar_planilha():
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -396,8 +480,13 @@ def conectar_planilha():
         st.error(f"Erro ao conectar com a planilha: {e}")
         st.stop()
 
+
 sheet = conectar_planilha()
 
+
+# =====================================================
+# CONEXÃO / CRIAÇÃO DA ABA DE RETIRADAS DE PERTENCES
+# =====================================================
 def conectar_aba_retiradas():
     try:
         return sheet.spreadsheet.worksheet("retirada_pertences")
@@ -417,6 +506,10 @@ def conectar_aba_retiradas():
         ])
         return nova_aba
 
+
+# =====================================================
+# CONEXÃO / CRIAÇÃO DA ABA DE LOG DE AUDITORIA
+# =====================================================
 def conectar_aba_log():
     try:
         return sheet.spreadsheet.worksheet("log_auditoria")
@@ -431,6 +524,10 @@ def conectar_aba_log():
         ])
         return nova_aba
 
+
+# =====================================================
+# CONEXÃO / CRIAÇÃO DA ABA DE VEÍCULOS DA DELEGACIA
+# =====================================================
 def conectar_aba_delegacia():
     try:
         return sheet.spreadsheet.worksheet("veiculos_delegacia")
@@ -456,12 +553,14 @@ def conectar_aba_delegacia():
         ])
         return nova_aba
 
+
 retirada_sheet = conectar_aba_retiradas()
 log_sheet = conectar_aba_log()
 delegacia_sheet = conectar_aba_delegacia()
 
+
 # =====================================================
-# ---------------- FUNÇÕES AUXILIARES -----------------
+# FUNÇÕES DE LEITURA DE DADOS COM CACHE
 # =====================================================
 
 @st.cache_data(ttl=60)
@@ -472,6 +571,7 @@ def carregar_dados():
         df.columns = df.columns.str.strip().str.lower()
     return df
 
+
 @st.cache_data(ttl=60)
 def carregar_retiradas():
     dados = retirada_sheet.get_all_records()
@@ -479,6 +579,7 @@ def carregar_retiradas():
     if not df.empty:
         df.columns = df.columns.str.strip().str.lower()
     return df
+
 
 @st.cache_data(ttl=60)
 def carregar_logs():
@@ -488,6 +589,7 @@ def carregar_logs():
         df.columns = df.columns.str.strip().str.lower()
     return df
 
+
 @st.cache_data(ttl=60)
 def carregar_dados_delegacia():
     dados = delegacia_sheet.get_all_records()
@@ -496,6 +598,10 @@ def carregar_dados_delegacia():
         df.columns = df.columns.str.strip().str.lower()
     return df
 
+
+# =====================================================
+# GERAÇÃO DE IDs AUTOMÁTICOS
+# =====================================================
 def gerar_id(df):
     if df.empty or "id" not in df.columns:
         return 1
@@ -505,6 +611,7 @@ def gerar_id(df):
     if df_ids_validos.empty:
         return 1
     return int(df_ids_validos.max()) + 1
+
 
 def gerar_id_retirada(df):
     if df.empty or "id_retirada" not in df.columns:
@@ -516,6 +623,10 @@ def gerar_id_retirada(df):
         return 1
     return int(ids_validos.max()) + 1
 
+
+# =====================================================
+# REGISTRO DE LOGS DO SISTEMA
+# =====================================================
 def registrar_log(usuario, acao, detalhes=""):
     agora = datetime.now(TZ)
     log_sheet.append_row([
@@ -526,6 +637,7 @@ def registrar_log(usuario, acao, detalhes=""):
         str(detalhes).upper()
     ])
 
+
 def registrar_log_impressao(usuario, tipo_relatorio, referencia=""):
     registrar_log(
         usuario=usuario,
@@ -533,6 +645,11 @@ def registrar_log_impressao(usuario, tipo_relatorio, referencia=""):
         detalhes=f"{tipo_relatorio} | {referencia}"
     )
 
+
+# =====================================================
+# VALIDAÇÃO DE HORA DIGITADA MANUALMENTE
+# Aceita: 14:00, 1400, 930
+# =====================================================
 def validar_hora_manual(hora_str):
     try:
         hora_str = str(hora_str).strip().replace(".", "").replace("-", "").replace(" ", "")
@@ -550,6 +667,11 @@ def validar_hora_manual(hora_str):
     except:
         return False, None
 
+
+# =====================================================
+# VALIDAÇÃO DE DATA DIGITADA MANUALMENTE
+# Aceita: 23/03/2026, 23-03-2026, 23032026, 230326
+# =====================================================
 def validar_data_manual(data_str):
     try:
         data_str = str(data_str).strip().replace("-", "/").replace(".", "/").replace("\\", "/")
@@ -587,11 +709,16 @@ def validar_data_manual(data_str):
     except:
         return False, None
 
+
+# =====================================================
+# FUNÇÕES DE NORMALIZAÇÃO DE TEXTO DE DATA/HORA
+# =====================================================
 def normalizar_hora_texto(hora_str):
     ok, hora_formatada = validar_hora_manual(hora_str)
     if ok:
         return hora_formatada
     return ""
+
 
 def normalizar_data_texto(data_str):
     ok, data_formatada = validar_data_manual(data_str)
@@ -599,6 +726,11 @@ def normalizar_data_texto(data_str):
         return data_formatada.strftime("%d/%m/%Y")
     return ""
 
+
+# =====================================================
+# PADRONIZAÇÃO DE COLUNAS DO DATAFRAME
+# Corrige nomes de colunas com variações de acentuação
+# =====================================================
 def preparar_dataframe(df):
     if df.empty:
         return df
@@ -632,6 +764,10 @@ def preparar_dataframe(df):
 
     return df
 
+
+# =====================================================
+# CRIA COLUNA AUXILIAR DE MÊS PARA RELATÓRIOS E GRÁFICOS
+# =====================================================
 def montar_coluna_mes(df, coluna_data, nome_coluna_mes):
     if coluna_data in df.columns:
         df[nome_coluna_mes] = pd.to_datetime(df[coluna_data], format="%d/%m/%Y", errors="coerce")
@@ -640,6 +776,10 @@ def montar_coluna_mes(df, coluna_data, nome_coluna_mes):
         df[nome_coluna_mes] = None
     return df
 
+
+# =====================================================
+# CARTÃO VISUAL DE MÉTRICA
+# =====================================================
 def card_metrica(titulo, valor):
     st.markdown(f"""
         <div class="metric-card">
@@ -648,6 +788,10 @@ def card_metrica(titulo, valor):
         </div>
     """, unsafe_allow_html=True)
 
+
+# =====================================================
+# MOSTRA AO USUÁRIO COMO O SISTEMA ENTENDEU DATA E HORA
+# =====================================================
 def mostrar_preview_data_hora(data_txt, hora_txt):
     data_preview = normalizar_data_texto(data_txt)
     hora_preview = normalizar_hora_texto(hora_txt)
@@ -658,11 +802,21 @@ def mostrar_preview_data_hora(data_txt, hora_txt):
     with col_prev2:
         st.caption(f"Hora reconhecida: {hora_preview if hora_preview else 'inválida'}")
 
+
+# =====================================================
+# GERA NOME DE ARQUIVO SEGURO
+# Remove caracteres problemáticos do nome
+# =====================================================
 def obter_nome_arquivo_seguro(texto_base):
     texto_base = str(texto_base).strip().replace(" ", "_").replace("/", "-").replace("\\", "-")
     texto_base = texto_base.replace(":", "-").replace("*", "").replace("?", "").replace('"', "")
     return texto_base
 
+
+# =====================================================
+# MONTA RELATÓRIO TEXTUAL COMPLETO DE VEÍCULO
+# Inclui dados principais e histórico de retirada de pertences
+# =====================================================
 def montar_relatorio_veiculo(df_veiculo, df_retiradas=None, origem="DEPÓSITO"):
     if df_veiculo.empty:
         return "Nenhum dado encontrado para este veículo."
@@ -712,6 +866,10 @@ def montar_relatorio_veiculo(df_veiculo, df_retiradas=None, origem="DEPÓSITO"):
 
     return "\n".join(linhas)
 
+
+# =====================================================
+# MONTA RELATÓRIO TEXTUAL DOS LOGS DO SISTEMA
+# =====================================================
 def montar_relatorio_logs(df_logs):
     linhas = []
     linhas.append("RELATÓRIO COMPLETO DE LOGS DO SISTEMA")
@@ -731,6 +889,10 @@ def montar_relatorio_logs(df_logs):
 
     return "\n".join(linhas)
 
+
+# =====================================================
+# GERA PDF A PARTIR DE TEXTO
+# =====================================================
 def gerar_pdf_texto(titulo, conteudo, usuario_emissor):
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
@@ -783,6 +945,10 @@ def gerar_pdf_texto(titulo, conteudo, usuario_emissor):
     buffer.seek(0)
     return buffer.getvalue()
 
+
+# =====================================================
+# REGISTRA RETIRADA DE PERTENCES
+# =====================================================
 def registrar_retirada_pertence(
     id_veiculo,
     placa,
@@ -818,6 +984,10 @@ def registrar_retirada_pertence(
 
     st.cache_data.clear()
 
+
+# =====================================================
+# REGISTRA ENTRADA DE VEÍCULO NA DELEGACIA
+# =====================================================
 def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, procedencia, data_entrada, hora_entrada, agente_entrada):
     df = carregar_dados_delegacia()
     novo_id = gerar_id(df)
@@ -849,6 +1019,10 @@ def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, pro
 
     st.cache_data.clear()
 
+
+# =====================================================
+# REGISTRA SAÍDA DE VEÍCULO DA DELEGACIA
+# =====================================================
 def registrar_saida_delegacia(id_veiculo, data_saida, hora_saida, agente_saida, observacoes=""):
     df = carregar_dados_delegacia()
     df = preparar_dataframe(df)
@@ -874,6 +1048,10 @@ def registrar_saida_delegacia(id_veiculo, data_saida, hora_saida, agente_saida, 
 
     st.cache_data.clear()
 
+
+# =====================================================
+# REGISTRA ENTRADA DE VEÍCULO NO PÁTIO
+# =====================================================
 def registrar_entrada_patio(numero_grv, placa, marca, modelo, cor, tipo, motivo, data_entrada, hora_entrada, agente):
     df = carregar_dados()
     novo_id = gerar_id(df)
@@ -905,6 +1083,10 @@ def registrar_entrada_patio(numero_grv, placa, marca, modelo, cor, tipo, motivo,
 
     st.cache_data.clear()
 
+
+# =====================================================
+# REGISTRA SAÍDA DE VEÍCULO DO PÁTIO
+# =====================================================
 def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, observacoes=""):
     df = carregar_dados()
     df = preparar_dataframe(df)
@@ -927,10 +1109,10 @@ def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, obse
 
     st.cache_data.clear()
 
-# =====================================================
-# ---------------- MENU -------------------------------
-# =====================================================
 
+# =====================================================
+# MENU PRINCIPAL
+# =====================================================
 if st.session_state['tipo_usuario'] in ['admin', 'gestor']:
     menu = st.sidebar.radio(
         "Menu Principal",
@@ -976,10 +1158,10 @@ if menu == "🚔 Delegacia":
         ]
     )
 
-# =====================================================
-# 📊 DASHBOARD
-# =====================================================
 
+# =====================================================
+# DASHBOARD
+# =====================================================
 if menu == "📊 Dashboard":
     st.subheader("Dashboard Operacional")
 
@@ -1138,10 +1320,10 @@ if menu == "📊 Dashboard":
                     else:
                         st.info("Sem datas válidas para o gráfico.")
 
-# =====================================================
-# 👤 CADASTRO DE USUÁRIO
-# =====================================================
 
+# =====================================================
+# CADASTRO DE USUÁRIO
+# =====================================================
 elif menu == "👤 Cadastrar Usuário":
     st.subheader("Cadastro de Usuário")
 
@@ -1178,10 +1360,10 @@ elif menu == "👤 Cadastrar Usuário":
                 else:
                     st.error("Usuário/Matrícula já cadastrado.")
 
-# =====================================================
-# 📋 GERENCIAR USUÁRIOS
-# =====================================================
 
+# =====================================================
+# GERENCIAR USUÁRIOS
+# =====================================================
 elif menu == "📋 Gerenciar Usuários":
     st.subheader("Gerenciamento de Usuários")
 
@@ -1249,10 +1431,10 @@ elif menu == "📋 Gerenciar Usuários":
                     time.sleep(1)
                     st.rerun()
 
-# =====================================================
-# 🔐 MINHA CONTA
-# =====================================================
 
+# =====================================================
+# MINHA CONTA
+# =====================================================
 elif menu == "🔐 Minha Conta":
     st.subheader("Minha Conta")
 
@@ -1296,14 +1478,13 @@ elif menu == "🔐 Minha Conta":
                     alterar_senha("gestor", st.session_state['usuario_id'], nova_senha)
                     st.success("Senha alterada com sucesso.")
 
-# =====================================================
-# 🚗 ENTRADA DE VEÍCULO
-# =====================================================
 
+# =====================================================
+# ENTRADA DE VEÍCULO
+# DATA E HORA AGORA SÃO APENAS DIGITADAS PELO USUÁRIO
+# =====================================================
 elif menu == "🚗 Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo")
-
-    agora = datetime.now(TZ)
 
     with st.form("entrada", clear_on_submit=True):
         numero_grv = st.text_input("Número da GRV")
@@ -1316,13 +1497,13 @@ elif menu == "🚗 Entrada de Veículo":
 
         data_entrada = st.text_input(
             "Data da Entrada",
-            value=agora.strftime("%d/%m/%Y"),
+            value="",
             placeholder="Ex: 23/03/2026 ou 23032026",
             help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
         )
         hora_entrada = st.text_input(
             "Hora da Entrada",
-            value=agora.strftime("%H:%M"),
+            value="",
             placeholder="Ex: 14:00 ou 1400",
             help="Aceita: 14:00, 1400, 930"
         )
@@ -1356,10 +1537,11 @@ elif menu == "🚗 Entrada de Veículo":
                 )
                 st.success("✅ Veículo registrado com sucesso!")
 
-# =====================================================
-# 📤 SAÍDA DE VEÍCULO
-# =====================================================
 
+# =====================================================
+# SAÍDA DE VEÍCULO
+# DATA E HORA DIGITADAS MANUALMENTE
+# =====================================================
 elif menu == "📤 Saída de Veículo":
     st.subheader("Registro de Saída de Veículo")
 
@@ -1374,8 +1556,6 @@ elif menu == "📤 Saída de Veículo":
         if df_ativos.empty:
             st.info("Nenhum veículo no depósito.")
         else:
-            agora = datetime.now(TZ)
-
             with st.form("form_saida_veiculo", clear_on_submit=True):
                 veiculo = st.selectbox(
                     "Selecione o veículo",
@@ -1384,14 +1564,14 @@ elif menu == "📤 Saída de Veículo":
 
                 data_saida = st.text_input(
                     "Data da Saída",
-                    value=agora.strftime("%d/%m/%Y"),
+                    value="",
                     key="data_saida_patio",
                     placeholder="Ex: 23/03/2026 ou 23032026",
                     help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
                 )
                 hora_saida = st.text_input(
                     "Hora da Saída",
-                    value=agora.strftime("%H:%M"),
+                    value="",
                     key="hora_saida_patio",
                     placeholder="Ex: 14:00 ou 1400",
                     help="Aceita: 14:00, 1400, 930"
@@ -1426,10 +1606,11 @@ elif menu == "📤 Saída de Veículo":
                         )
                         st.success("🚗 Veículo liberado com sucesso!")
 
-# =====================================================
-# 🧾 RETIRADA DE PERTENCES
-# =====================================================
 
+# =====================================================
+# RETIRADA DE PERTENCES
+# DATA E HORA DIGITADAS MANUALMENTE
+# =====================================================
 elif menu == "🧾 Retirada de Pertences":
     st.subheader("Retirada de Pertences do Veículo Apreendido")
 
@@ -1444,8 +1625,6 @@ elif menu == "🧾 Retirada de Pertences":
         if df_ativos.empty:
             st.info("Não há veículos atualmente no depósito para retirada de pertences.")
         else:
-            agora_sp = datetime.now(TZ)
-
             with st.form("form_retirada_pertences", clear_on_submit=True):
                 veiculo = st.selectbox(
                     "Selecione o veículo",
@@ -1458,13 +1637,13 @@ elif menu == "🧾 Retirada de Pertences":
 
                 data_retirada = st.text_input(
                     "Data da Retirada",
-                    value=agora_sp.strftime("%d/%m/%Y"),
+                    value="",
                     placeholder="Ex: 23/03/2026 ou 23032026",
                     help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
                 )
                 hora_retirada = st.text_input(
                     "Hora da Retirada",
-                    value=agora_sp.strftime("%H:%M"),
+                    value="",
                     placeholder="Ex: 14:00 ou 1400",
                     help="Aceita: 14:00, 1400, 930"
                 )
@@ -1505,14 +1684,13 @@ elif menu == "🧾 Retirada de Pertences":
 
                         st.success("✅ Retirada de pertences registrada com sucesso!")
 
-# =====================================================
-# 🚔 DELEGACIA
-# =====================================================
 
+# =====================================================
+# DELEGACIA - ENTRADA DE VEÍCULO
+# DATA E HORA DIGITADAS MANUALMENTE
+# =====================================================
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
     st.subheader("Registro de Entrada de Veículo - Delegacia")
-
-    agora = datetime.now(TZ)
 
     with st.form("entrada_delegacia", clear_on_submit=True):
         numero_grv = st.text_input("Número da GRV")
@@ -1525,14 +1703,14 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
 
         data_entrada = st.text_input(
             "Data da Entrada",
-            value=agora.strftime("%d/%m/%Y"),
+            value="",
             key="data_entrada_del",
             placeholder="Ex: 23/03/2026 ou 23032026",
             help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
         )
         hora_entrada = st.text_input(
             "Hora da Entrada",
-            value=agora.strftime("%H:%M"),
+            value="",
             key="hora_entrada_del",
             placeholder="Ex: 14:00 ou 1400",
             help="Aceita: 14:00, 1400, 930"
@@ -1567,6 +1745,11 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
                 )
                 st.success("✅ Veículo da delegacia registrado com sucesso!")
 
+
+# =====================================================
+# DELEGACIA - SAÍDA DE VEÍCULO
+# DATA E HORA DIGITADAS MANUALMENTE
+# =====================================================
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
     st.subheader("Registro de Saída de Veículo - Delegacia")
 
@@ -1581,8 +1764,6 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
         if df_ativos.empty:
             st.info("Nenhum veículo da delegacia no depósito.")
         else:
-            agora = datetime.now(TZ)
-
             with st.form("form_saida_delegacia", clear_on_submit=True):
                 veiculo = st.selectbox(
                     "Selecione o veículo da delegacia",
@@ -1591,14 +1772,14 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
 
                 data_saida = st.text_input(
                     "Data da Saída",
-                    value=agora.strftime("%d/%m/%Y"),
+                    value="",
                     key="data_saida_del",
                     placeholder="Ex: 23/03/2026 ou 23032026",
                     help="Aceita: 23/03/2026, 23-03-2026, 23032026, 230326"
                 )
                 hora_saida = st.text_input(
                     "Hora da Saída",
-                    value=agora.strftime("%H:%M"),
+                    value="",
                     key="hora_saida_del",
                     placeholder="Ex: 14:00 ou 1400",
                     help="Aceita: 14:00, 1400, 930"
@@ -1636,6 +1817,10 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
 
                         st.success("✅ Saída de veículo da delegacia registrada com sucesso!")
 
+
+# =====================================================
+# DELEGACIA - CONSULTA DE VEÍCULOS
+# =====================================================
 elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
     st.subheader("Consulta de Veículos Vindos da Delegacia")
 
@@ -1665,10 +1850,10 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Consulta de Veículos":
 
         st.dataframe(df_del, use_container_width=True)
 
-# =====================================================
-# 🖨️ RELATÓRIOS
-# =====================================================
 
+# =====================================================
+# RELATÓRIOS
+# =====================================================
 elif menu == "🖨️ Relatórios":
     st.subheader("Relatórios de Veículos")
 
@@ -1793,10 +1978,10 @@ elif menu == "🖨️ Relatórios":
                     referencia="LOG COMPLETO DO SISTEMA"
                 )
 
-# =====================================================
-# 🔎 CONSULTA / INVENTÁRIO
-# =====================================================
 
+# =====================================================
+# CONSULTA / INVENTÁRIO
+# =====================================================
 elif menu == "🔎 Consulta / Inventário":
     st.subheader("Consulta de Veículos")
 
@@ -1853,10 +2038,10 @@ elif menu == "🔎 Consulta / Inventário":
 
             st.dataframe(df_ret, use_container_width=True)
 
-# =====================================================
-# 📜 LOG DE AUDITORIA
-# =====================================================
 
+# =====================================================
+# LOG DE AUDITORIA
+# =====================================================
 elif menu == "📜 Log de Auditoria":
     st.subheader("Log de Auditoria do Sistema")
 
