@@ -1493,7 +1493,7 @@ elif menu == "🚗 Entrada de Veículo":
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
-        motivo = st.text_area("Motivo da Apreensão")
+        motivo = st.text_area("Motivo da apreensão/Observações")
 
         data_entrada = st.text_input(
             "Data da Entrada",
