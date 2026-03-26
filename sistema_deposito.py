@@ -1583,7 +1583,7 @@ elif menu == "📤 Saída de Veículo":
                     "Agente Responsável pela Liberação",
                     value=st.session_state['nome_usuario']
                 )
-                obs = st.text_area("Observações")
+                obs = st.text_area("Nome de quem retirou/Nº do documento/observações")
 
                 if st.form_submit_button("Registrar Saída"):
                     data_ok, data_formatada = validar_data_manual(data_saida)
