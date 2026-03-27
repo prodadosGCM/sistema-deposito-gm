@@ -1367,7 +1367,7 @@ elif menu == "👤 Cadastrar Usuário":
         else:
             identificador = st.text_input("Usuário do Gestor")
 
-        nome = st.text_input("Nome Completo")
+        nome = st.text_input("Nome de guerra")
         senha_inicial = st.text_input("Senha Inicial", value="1234", type="password")
 
         if st.form_submit_button("Cadastrar Usuário"):
@@ -1522,7 +1522,7 @@ elif menu == "🚗 Entrada de Veículo":
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
-        motivo = st.text_area("Motivo da Apreensão")
+        motivo = st.text_area("Motivo da Apreensão/Observações adicionais")
 
         data_entrada = st.text_input(
             "Data da Entrada",
@@ -1537,7 +1537,6 @@ elif menu == "🚗 Entrada de Veículo":
             help="Aceita: 14:00, 1400, 930"
         )
 
-        mostrar_preview_data_hora(data_entrada, hora_entrada)
 
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
@@ -1605,13 +1604,12 @@ elif menu == "📤 Saída de Veículo":
                     help="Aceita: 14:00, 1400, 930"
                 )
 
-                mostrar_preview_data_hora(data_saida, hora_saida)
 
                 agente_saida = st.text_input(
                     "Agente Responsável pela Liberação",
                     value=st.session_state['nome_usuario']
                 )
-                obs = st.text_area("Observações")
+                obs = st.text_area("Observações adicionais, se necessário")
 
                 if st.form_submit_button("Registrar Saída"):
                     data_ok, data_formatada = validar_data_manual(data_saida)
@@ -1674,7 +1672,6 @@ elif menu == "🧾 Retirada de Pertences":
                     placeholder=""
                 )
 
-                mostrar_preview_data_hora(data_retirada, hora_retirada)
 
                 nome_retirante = st.text_input("Nome Completo da Pessoa que Retirou o Pertence")
                 documento_retirante = st.text_input("Documento da Pessoa que Retirou")
@@ -1729,7 +1726,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
         tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
-        procedencia = st.text_input("Procedência / Delegacia de Origem")
+        procedencia = st.text_input("Procedência / Delegacia de Origem / Observações")
 
         data_entrada = st.text_input(
             "Data da Entrada",
@@ -1746,7 +1743,6 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
             help="Aceita: 14:00, 1400, 930"
         )
 
-        mostrar_preview_data_hora(data_entrada, hora_entrada)
 
         agente = st.text_input("Agente Responsável", value=st.session_state['nome_usuario'])
 
@@ -1814,7 +1810,6 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Saída de Veículo":
                     help="Aceita: 14:00, 1400, 930"
                 )
 
-                mostrar_preview_data_hora(data_saida, hora_saida)
 
                 agente_saida = st.text_input(
                     "Agente Responsável pela Liberação",
