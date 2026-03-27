@@ -95,21 +95,34 @@ def check_hashes(password, hashed_text):
 # =====================================================
 # CONTROLE DE SESSÃO
 # =====================================================
-if 'logado' not in st.session_state:
-    st.session_state['logado'] = False
-    st.session_state['usuario_id'] = None
-    st.session_state['tipo_usuario'] = None
-    st.session_state['primeiro_acesso'] = False
-    st.session_state['nome_usuario'] = ""
-    st.session_state['login_usuario'] = ""
+def init_session():
+    valores_padrao = {
+        "logado": False,
+        "usuario_id": None,
+        "tipo_usuario": None,
+        "primeiro_acesso": False,
+        "nome_usuario": "",
+        "login_usuario": "",
+    }
+
+    for chave, valor in valores_padrao.items():
+        if chave not in st.session_state:
+            st.session_state[chave] = valor
+
+
+init_session()
 
 
 # =====================================================
 # FUNÇÃO DE LOGOUT
 # =====================================================
 def logout():
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
+    st.session_state["logado"] = False
+    st.session_state["usuario_id"] = None
+    st.session_state["tipo_usuario"] = None
+    st.session_state["primeiro_acesso"] = False
+    st.session_state["nome_usuario"] = ""
+    st.session_state["login_usuario"] = ""
     st.rerun()
 
 
@@ -176,7 +189,8 @@ def conectar_aba_usuarios():
 
             admin_existe = not df[
                 (df["tipo_usuario"].astype(str).str.lower() == "admin") &
-                (df["login"].astype(str).str.lower() == "admin")
+                (df["login"].astype(str).str.lower() == "admin") &
+                (df["status"].astype(str).str.upper() == "ATIVO")
             ].empty
 
             if not admin_existe:
@@ -326,6 +340,28 @@ def carregar_usuarios():
 
 
 # =====================================================
+# LIMPEZA CONTROLADA DE CACHE
+# =====================================================
+def limpar_cache_modulos(
+    usuarios=False,
+    veiculos=False,
+    retiradas=False,
+    logs=False,
+    delegacia=False
+):
+    if usuarios:
+        carregar_usuarios.clear()
+    if veiculos:
+        carregar_dados.clear()
+    if retiradas:
+        carregar_retiradas.clear()
+    if logs:
+        carregar_logs.clear()
+    if delegacia:
+        carregar_dados_delegacia.clear()
+
+
+# =====================================================
 # GERAÇÃO DE IDs AUTOMÁTICOS
 # =====================================================
 def gerar_id(df):
@@ -371,6 +407,7 @@ def registrar_log(usuario, acao, detalhes=""):
         str(acao).upper(),
         str(detalhes).upper()
     ])
+    carregar_logs.clear()
 
 
 def registrar_log_impressao(usuario, tipo_relatorio, referencia=""):
@@ -424,12 +461,19 @@ def login_usuario_planilha(tipo_usuario, login, senha):
     user = buscar_usuario_login(tipo_usuario, login)
 
     if user is not None and check_hashes(senha, str(user["senha"])):
+        primeiro_acesso_val = user.get("primeiro_acesso", 0)
+        primeiro_acesso_bool = False
+        try:
+            primeiro_acesso_bool = bool(int(primeiro_acesso_val))
+        except Exception:
+            primeiro_acesso_bool = False
+
         return {
             "sucesso": True,
             "id": int(user["id"]),
             "nome": str(user["nome"]),
             "login": str(user["login"]),
-            "primeiro_acesso": bool(int(user["primeiro_acesso"])) if pd.notna(user["primeiro_acesso"]) else False
+            "primeiro_acesso": primeiro_acesso_bool
         }
 
     return {
@@ -447,7 +491,8 @@ def cadastrar_usuario_planilha(tipo_usuario, login, nome, senha_inicial):
     if not df.empty:
         existe = df[
             (df["tipo_usuario"].astype(str).str.lower() == str(tipo_usuario).strip().lower()) &
-            (df["login"].astype(str).str.lower() == str(login).strip().lower())
+            (df["login"].astype(str).str.lower() == str(login).strip().lower()) &
+            (df["status"].astype(str).str.upper() == "ATIVO")
         ]
 
         if not existe.empty:
@@ -467,12 +512,12 @@ def cadastrar_usuario_planilha(tipo_usuario, login, nome, senha_inicial):
     ])
 
     registrar_log(
-        usuario=st.session_state.get('nome_usuario', 'SISTEMA'),
+        usuario=st.session_state.get("nome_usuario", "SISTEMA"),
         acao="CADASTRO_USUARIO",
         detalhes=f"TIPO {tipo_usuario} | LOGIN {login} | NOME {nome}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(usuarios=True, logs=True)
     return True
 
 
@@ -482,7 +527,6 @@ def alterar_senha_usuario_planilha(id_usuario, nova_senha):
         return False
 
     nova_senha_hash = make_hashes(nova_senha)
-
     usuarios_sheet.update(f"E{linha}:F{linha}", [[nova_senha_hash, 0]])
 
     registrar_log(
@@ -491,7 +535,7 @@ def alterar_senha_usuario_planilha(id_usuario, nova_senha):
         detalhes=f"ID_USUARIO {id_usuario}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(usuarios=True, logs=True)
     return True
 
 
@@ -528,12 +572,12 @@ def excluir_usuario_planilha(id_usuario):
     usuarios_sheet.update(f"G{linha}", [["INATIVO"]])
 
     registrar_log(
-        usuario=st.session_state.get('nome_usuario', 'SISTEMA'),
+        usuario=st.session_state.get("nome_usuario", "SISTEMA"),
         acao="INATIVACAO_USUARIO",
         detalhes=f"ID {id_usuario} | LOGIN {user.get('login', '')} | NOME {user.get('nome', '')}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(usuarios=True, logs=True)
     return True
 
 
@@ -546,12 +590,12 @@ def resetar_senha_usuario_planilha(id_usuario, nova_senha="1234"):
     usuarios_sheet.update(f"E{linha}:F{linha}", [[senha_hash, 1]])
 
     registrar_log(
-        usuario=st.session_state.get('nome_usuario', 'SISTEMA'),
+        usuario=st.session_state.get("nome_usuario", "SISTEMA"),
         acao="RESET_SENHA_USUARIO",
         detalhes=f"ID {id_usuario} | LOGIN {user.get('login', '')}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(usuarios=True, logs=True)
     return True
 
 
@@ -886,7 +930,7 @@ def registrar_retirada_pertence(
         detalhes=f"PLACA {placa} | RETIRANTE {nome_retirante} | DOC {documento_retirante}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(retiradas=True, logs=True)
 
 
 # =====================================================
@@ -921,7 +965,7 @@ def registrar_entrada_delegacia(numero_grv, placa, marca, modelo, cor, tipo, pro
         detalhes=f"GRV {numero_grv} | PLACA {placa} | PROCEDENCIA {procedencia}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(delegacia=True, logs=True)
 
 
 # =====================================================
@@ -950,7 +994,7 @@ def registrar_saida_delegacia(id_veiculo, data_saida, hora_saida, agente_saida, 
         detalhes=f"GRV {numero_grv} | PLACA {placa}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(delegacia=True, logs=True)
 
 
 # =====================================================
@@ -985,7 +1029,7 @@ def registrar_entrada_patio(numero_grv, placa, marca, modelo, cor, tipo, motivo,
         detalhes=f"GRV {numero_grv} | PLACA {placa}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(veiculos=True, logs=True)
 
 
 # =====================================================
@@ -1011,68 +1055,52 @@ def registrar_saida_patio(id_veiculo, data_saida, hora_saida, agente_saida, obse
         detalhes=f"GRV {df.loc[df['id'] == id_veiculo, 'numero_grv'].values[0]} | PLACA {df.loc[df['id'] == id_veiculo, 'placa'].values[0]}"
     )
 
-    st.cache_data.clear()
+    limpar_cache_modulos(veiculos=True, logs=True)
 
 
 # =====================================================
 # TELA DE LOGIN
 # =====================================================
-if not st.session_state['logado']:
+if not st.session_state["logado"]:
     col1, col2, col3 = st.columns([1, 1.4, 1])
 
     with col2:
         st.subheader("🔐 Acesso ao Sistema")
 
-        tipo = st.radio("Entrar como:", ["Agente", "Gestor", "Administrador"], horizontal=True)
+        with st.form("form_login"):
+            tipo = st.radio("Entrar como:", ["Agente", "Gestor", "Administrador"], horizontal=True)
 
-        if tipo == "Administrador":
-            usuario_input = st.text_input("Usuário do Admin")
-        elif tipo == "Gestor":
-            usuario_input = st.text_input("Usuário do Gestor")
-        else:
-            usuario_input = st.text_input("Matrícula do Agente")
-
-        senha_input = st.text_input("Senha", type="password")
-
-        if st.button("Entrar", use_container_width=True):
             if tipo == "Administrador":
-                resultado = login_usuario_planilha("admin", usuario_input, senha_input)
-                if resultado["sucesso"]:
-                    st.session_state['logado'] = True
-                    st.session_state['tipo_usuario'] = 'admin'
-                    st.session_state['usuario_id'] = resultado["id"]
-                    st.session_state['nome_usuario'] = resultado["nome"]
-                    st.session_state['login_usuario'] = resultado["login"]
-                    st.session_state['primeiro_acesso'] = resultado["primeiro_acesso"]
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha inválidos.")
-
+                usuario_input = st.text_input("Usuário do Admin")
             elif tipo == "Gestor":
-                resultado = login_usuario_planilha("gestor", usuario_input, senha_input)
-                if resultado["sucesso"]:
-                    st.session_state['logado'] = True
-                    st.session_state['tipo_usuario'] = 'gestor'
-                    st.session_state['usuario_id'] = resultado["id"]
-                    st.session_state['nome_usuario'] = resultado["nome"]
-                    st.session_state['login_usuario'] = resultado["login"]
-                    st.session_state['primeiro_acesso'] = resultado["primeiro_acesso"]
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha inválidos.")
-
+                usuario_input = st.text_input("Usuário do Gestor")
             else:
-                resultado = login_usuario_planilha("agente", usuario_input, senha_input)
-                if resultado["sucesso"]:
-                    st.session_state['logado'] = True
-                    st.session_state['tipo_usuario'] = 'agente'
-                    st.session_state['usuario_id'] = resultado["id"]
-                    st.session_state['nome_usuario'] = resultado["nome"]
-                    st.session_state['login_usuario'] = resultado["login"]
-                    st.session_state['primeiro_acesso'] = resultado["primeiro_acesso"]
-                    st.rerun()
-                else:
-                    st.error("Matrícula ou senha incorretos.")
+                usuario_input = st.text_input("Matrícula do Agente")
+
+            senha_input = st.text_input("Senha", type="password")
+
+            entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+        if entrar:
+            tipo_mapa = {
+                "Administrador": "admin",
+                "Gestor": "gestor",
+                "Agente": "agente"
+            }
+
+            tipo_login = tipo_mapa[tipo]
+            resultado = login_usuario_planilha(tipo_login, usuario_input.strip(), senha_input)
+
+            if resultado["sucesso"]:
+                st.session_state["logado"] = True
+                st.session_state["tipo_usuario"] = tipo_login
+                st.session_state["usuario_id"] = resultado["id"]
+                st.session_state["nome_usuario"] = resultado["nome"]
+                st.session_state["login_usuario"] = resultado["login"]
+                st.session_state["primeiro_acesso"] = resultado["primeiro_acesso"]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
 
     st.stop()
 
@@ -1080,7 +1108,7 @@ if not st.session_state['logado']:
 # =====================================================
 # TROCA DE SENHA NO PRIMEIRO ACESSO
 # =====================================================
-if st.session_state['primeiro_acesso']:
+if st.session_state["primeiro_acesso"]:
     st.warning("⚠️ Por segurança, altere sua senha inicial.")
     with st.form("form_troca_senha", clear_on_submit=True):
         nova_s1 = st.text_input("Nova Senha", type="password")
@@ -1088,14 +1116,17 @@ if st.session_state['primeiro_acesso']:
 
         if st.form_submit_button("Atualizar Senha"):
             if nova_s1 == nova_s2 and len(nova_s1) > 3:
-                alterar_senha_usuario_planilha(
-                    st.session_state['usuario_id'],
+                ok = alterar_senha_usuario_planilha(
+                    st.session_state["usuario_id"],
                     nova_s1
                 )
-                st.session_state['primeiro_acesso'] = False
-                st.success("Senha atualizada com sucesso.")
-                time.sleep(1)
-                st.rerun()
+                if ok:
+                    st.session_state["primeiro_acesso"] = False
+                    st.success("Senha atualizada com sucesso.")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Não foi possível atualizar a senha.")
             else:
                 st.error("As senhas não coincidem ou são muito curtas.")
     st.stop()
@@ -1105,7 +1136,7 @@ if st.session_state['primeiro_acesso']:
 # SIDEBAR DO USUÁRIO LOGADO
 # =====================================================
 st.sidebar.success(f"Logado como: {st.session_state['nome_usuario']}")
-st.sidebar.write(f"Perfil: {st.session_state['tipo_usuario'].upper()}")
+st.sidebar.write(f"Perfil: {str(st.session_state['tipo_usuario']).upper()}")
 
 if st.sidebar.button("Sair / Logout"):
     logout()
