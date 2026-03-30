@@ -1521,7 +1521,7 @@ elif menu == "🚗 Entrada de Veículo":
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
-        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"])
+        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "CARCAÇA", "OUTRO"])
         motivo = st.text_area("Motivo da Apreensão/Observações adicionais")
 
         data_entrada = st.text_input(
@@ -1725,7 +1725,7 @@ elif menu == "🚔 Delegacia" and submenu_delegacia == "Entrada de Veículo":
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
         cor = st.text_input("Cor")
-        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO", "OUTRO"], key="tipo_delegacia")
+        tipo = st.selectbox("Tipo", ["AUTOMÓVEL", "MOTOCICLETA", "CAMINHÃO","CARCAÇA", "OUTRO"], key="tipo_delegacia")
         procedencia = st.text_input("Procedência / Delegacia de Origem / Observações")
 
         data_entrada = st.text_input(
